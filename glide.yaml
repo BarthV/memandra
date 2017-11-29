@@ -1,0 +1,11 @@
+package: github.com/BarthV/memandra
+import:
+- package: github.com/netflix/rend
+  subpackages:
+  - handlers
+  - orcas
+  - server
+  - common
+  - protocol
+- package: github.com/Sirupsen/logrus
+- package: github.com/gocql/gocql

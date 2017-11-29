@@ -1,0 +1,24 @@
+hash: 64c60fbe64391586e3c02582c7ae76d667040af8cbbfefb026ef2ce520d4126e
+updated: 2017-11-29T11:58:31.719245547+01:00
+imports:
+- name: github.com/gocql/gocql
+  version: d9815cdf0ff24e2efa9b8062f4f94a6dd347ae51
+- name: github.com/netflix/rend
+  version: 22dcb0d90326aa142c796f6e8dc776c14884fdb1
+  subpackages:
+  - common
+  - handlers
+  - metrics
+  - orcas
+  - protocol
+  - server
+  - timer
+- name: github.com/Netflix/rend
+  version: 22dcb0d90326aa142c796f6e8dc776c14884fdb1
+  subpackages:
+  - handlers
+  - orcas
+  - server
+- name: github.com/Sirupsen/logrus
+  version: 95cd2b9c79aa5e72ab0bc69b7ccc2be15bf850f6
+testImports: []
