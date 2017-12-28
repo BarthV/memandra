@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/BarthV/memandra/handlers/cassandra"
 	"github.com/netflix/rend/handlers"
-	"github.com/netflix/rend/handlers/inmem"
 	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/protocol/binprot"
@@ -11,11 +11,11 @@ import (
 )
 
 func main() {
-
-	var h2 handlers.HandlerConst
 	var h1 handlers.HandlerConst
+	var h2 handlers.HandlerConst
 
-	h1 = inmem.New
+	h1 = cassandra.New
+	//h1 = inmem.New
 	h2 = handlers.NilHandler
 
 	l := server.TCPListener(11211)
