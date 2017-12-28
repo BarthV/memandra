@@ -1,8 +1,8 @@
 hash: 64c60fbe64391586e3c02582c7ae76d667040af8cbbfefb026ef2ce520d4126e
-updated: 2017-11-29T16:02:30.118478338+01:00
+updated: 2017-12-28T14:01:33.851149336+01:00
 imports:
 - name: github.com/gocql/gocql
-  version: d9815cdf0ff24e2efa9b8062f4f94a6dd347ae51
+  version: 59441a623b364472525164bb62b6da9d552eb2ca
   subpackages:
   - internal/lru
   - internal/murmur
@@ -12,11 +12,10 @@ imports:
 - name: github.com/hailocab/go-hostpool
   version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/netflix/rend
-  version: 22dcb0d90326aa142c796f6e8dc776c14884fdb1
+  version: d3db570668d3ecd97cbdf0988c92145a9040e235
   subpackages:
   - common
   - handlers
-  - handlers/inmem
   - metrics
   - orcas
   - protocol
@@ -25,7 +24,7 @@ imports:
   - server
   - timer
 - name: github.com/Sirupsen/logrus
-  version: 95cd2b9c79aa5e72ab0bc69b7ccc2be15bf850f6
+  version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 testImports: []
