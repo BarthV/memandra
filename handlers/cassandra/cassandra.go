@@ -13,7 +13,7 @@ type Handler struct {
 var singleton *Handler
 
 func New() (handlers.Handler, error) {
-	clust := gocql.NewCluster("cassandra.host.service")
+	clust := gocql.NewCluster("cassandra.hostname")
 	clust.Keyspace = "kvstore"
 	clust.Consistency = gocql.LocalOne
 	sess, err := clust.CreateSession()
@@ -29,6 +29,8 @@ func New() (handlers.Handler, error) {
 		}
 	}
 
+	// TODO : prepare Cassandra statements for common queries
+
 	return singleton, nil
 }
 
@@ -38,7 +40,16 @@ func (h *Handler) Close() error {
 }
 
 func (h *Handler) Set(cmd common.SetRequest) error {
+	kv_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
+		values := make([]interface{}, 2)
+		values[0] = cmd.Key
+		values[1] = cmd.Data
+		return values, nil
+	}
 
+	if err := h.session.Bind("INSERT INTO kvstore.barth (keycol,valuecol) VALUES (?, ?)", kv_qi).Exec(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -66,17 +77,33 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 	dataOut := make(chan common.GetResponse, len(cmd.Keys))
 	errorOut := make(chan error)
 
-	var key gocql.UUID
-	var val []byte
+	for idx, key := range cmd.Keys {
+		key_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
+			values := make([]interface{}, 1)
+			values[0] = key
+			return values, nil
+		}
 
-	if err := h.session.Query("select keycol,valuecol from kvtable where keycol=3761b107-552d-4eee-bbfb-4152fe1f7eca").Scan(&key, &val); err == nil {
-		dataOut <- common.GetResponse{
-			Miss:   false,
-			Quiet:  cmd.Quiet[0],
-			Opaque: cmd.Opaques[0],
-			Flags:  0,
-			Key:    []byte(key.String()),
-			Data:   val,
+		var val []byte
+
+		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.barth where keycol=?", key_qi).Scan(&key, &val); err == nil {
+			dataOut <- common.GetResponse{
+				Miss:   false,
+				Quiet:  cmd.Quiet[idx],
+				Opaque: cmd.Opaques[idx],
+				Flags:  0,
+				Key:    []byte(key),
+				Data:   val,
+			}
+		} else {
+			dataOut <- common.GetResponse{
+				Miss:   true,
+				Quiet:  cmd.Quiet[idx],
+				Opaque: cmd.Opaques[idx],
+				Flags:  0,
+				Key:    []byte(key),
+				Data:   nil,
+			}
 		}
 	}
 
