@@ -130,7 +130,15 @@ func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 }
 
 func (h *Handler) Delete(cmd common.DeleteRequest) error {
+	kv_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
+		values := make([]interface{}, 1)
+		values[0] = cmd.Key
+		return values, nil
+	}
 
+	if err := h.session.Bind("DELETE FROM kvstore.barth WHERE keycol=?", kv_qi).Exec(); err != nil {
+		return err
+	}
 	return nil
 }
 
