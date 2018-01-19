@@ -13,23 +13,23 @@ type Handler struct {
 var singleton *Handler
 
 func New() (handlers.Handler, error) {
-	clust := gocql.NewCluster("cassandra.hostname")
-	clust.Keyspace = "kvstore"
-	clust.Consistency = gocql.LocalOne
-	sess, err := clust.CreateSession()
-	if err != nil {
-		return nil, err
-	}
-
 	// Only spawn a unique cassandra session per instance,
 	// store this session in a global singleton.
 	if singleton == nil {
+		clust := gocql.NewCluster("cassandra.hostname")
+		clust.Keyspace = "kvstore"
+		clust.Consistency = gocql.LocalOne
+		sess, err := clust.CreateSession()
+		if err != nil {
+			return nil, err
+		}
 		singleton = &Handler{
 			session: sess,
 		}
 	}
 
 	// TODO : prepare Cassandra statements for common queries
+	// Currently using session.bind() that registers statements if they don't exists
 
 	return singleton, nil
 }
@@ -47,7 +47,7 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		return values, nil
 	}
 
-	if err := h.session.Bind("INSERT INTO kvstore.barth (keycol,valuecol) VALUES (?, ?)", kv_qi).Exec(); err != nil {
+	if err := h.session.Bind("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?)", kv_qi).Exec(); err != nil {
 		return err
 	}
 	return nil
@@ -86,7 +86,7 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 
 		var val []byte
 
-		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.barth where keycol=?", key_qi).Scan(&key, &val); err == nil {
+		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val); err == nil {
 			dataOut <- common.GetResponse{
 				Miss:   false,
 				Quiet:  cmd.Quiet[idx],
@@ -136,7 +136,7 @@ func (h *Handler) Delete(cmd common.DeleteRequest) error {
 		return values, nil
 	}
 
-	if err := h.session.Bind("DELETE FROM kvstore.barth WHERE keycol=?", kv_qi).Exec(); err != nil {
+	if err := h.session.Bind("DELETE FROM kvstore.bucket1 WHERE keycol=?", kv_qi).Exec(); err != nil {
 		return err
 	}
 	return nil
