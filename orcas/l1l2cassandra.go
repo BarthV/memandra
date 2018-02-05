@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package notconsistentorcas
+package orcas
 
 import (
 	"errors"
@@ -27,24 +27,45 @@ import (
 )
 
 var (
-	ErrL1L2SetFailed = errors.New("ERROR Both L1 & L2 Set failed")
+	ErrL1L2SetFailed   = errors.New("ERROR Both L1 & L2 Set failed")
+	ErrL2OnlySetFailed = errors.New("ERROR L2Only Set failed")
 )
 
-type L1L2NotConsistentOrca struct {
+type L1L2CassandraOrca struct {
 	l1  handlers.Handler
 	l2  handlers.Handler
 	res protocol.Responder
 }
 
-func L1L2NotConsistent(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
-	return &L1L2NotConsistentOrca{
+func L1L2Cassandra(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
+	return &L1L2CassandraOrca{
 		l1:  l1,
 		l2:  l2,
 		res: res,
 	}
 }
 
-func (l *L1L2NotConsistentOrca) Set(req common.SetRequest) error {
+// This func aims at providing an async method to fill L2 after L1 set is ack'ed
+func (l *L1L2CassandraOrca) SetL2Only(req common.SetRequest) error {
+	// Set to L2
+	metrics.IncCounter(orcas.MetricCmdSetL2)
+	start := timer.Now()
+	errL2 := l.l2.Set(req)
+
+	metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
+
+	// Return an error if data is not stored in L2
+	if errL2 != nil {
+		metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
+		return ErrL2OnlySetFailed
+	}
+
+	metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
+	// return code is ignored by goroutine caller (Set func)
+	return errL2
+}
+
+func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
 	//log.Println("set", string(req.Key))
 
 	// Set to L1 first
@@ -57,59 +78,58 @@ func (l *L1L2NotConsistentOrca) Set(req common.SetRequest) error {
 	if errL1 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
 	} else {
+		// Successful write to L1 is a completed write !
 		metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
+		metrics.IncCounter(orcas.MetricCmdSetSuccess)
+		// Set L2 asynchronously. As L1 is OK, we don't check L2 success.
+		go l.SetL2Only(req)
+		return l.res.Set(req.Opaque, req.Quiet)
 	}
 
-	// Set to L2 afterwards whatever L1 set status is
+	// If L1 Set failed, fallback to L2 Set
 	metrics.IncCounter(orcas.MetricCmdSetL2)
 	start = timer.Now()
 	errL2 := l.l2.Set(req)
 
 	metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
 
+	// Return an error if data is not stored in L2 either
 	if errL2 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
-	} else {
-		metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
-	}
-
-	// Return OK if data stored in L1 or L2
-	if errL1 != nil && errL2 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrors)
 		return ErrL1L2SetFailed
-	} else {
-		metrics.IncCounter(orcas.MetricCmdSetSuccess)
-		return nil
 	}
 
+	metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
+	metrics.IncCounter(orcas.MetricCmdSetSuccess)
 	return l.res.Set(req.Opaque, req.Quiet)
 }
 
-func (l *L1L2NotConsistentOrca) Add(req common.SetRequest) error {
+func (l *L1L2CassandraOrca) Add(req common.SetRequest) error {
 	// Add is not yet implemented.
 	log.Println("[WARN] Add command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Replace(req common.SetRequest) error {
+func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 	// Replace is not yet implemented.
 	log.Println("[WARN] Replace command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Append(req common.SetRequest) error {
+func (l *L1L2CassandraOrca) Append(req common.SetRequest) error {
 	// Append is not yet implemented.
 	log.Println("[WARN] Append command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Prepend(req common.SetRequest) error {
+func (l *L1L2CassandraOrca) Prepend(req common.SetRequest) error {
 	// Prepend is not yet implemented.
 	log.Println("[WARN] Prepend command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Delete(req common.DeleteRequest) error {
+func (l *L1L2CassandraOrca) Delete(req common.DeleteRequest) error {
 	//log.Println("delete", string(req.Key))
 
 	// Try L2 first
@@ -176,13 +196,13 @@ func (l *L1L2NotConsistentOrca) Delete(req common.DeleteRequest) error {
 	return l.res.Delete(req.Opaque)
 }
 
-func (l *L1L2NotConsistentOrca) Touch(req common.TouchRequest) error {
+func (l *L1L2CassandraOrca) Touch(req common.TouchRequest) error {
 	// Touch is not yet implemented.
 	log.Println("[WARN] Touch command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Get(req common.GetRequest) error {
+func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 	metrics.IncCounterBy(orcas.MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
 	//for _, k := range req.Keys {
@@ -325,35 +345,35 @@ func (l *L1L2NotConsistentOrca) Get(req common.GetRequest) error {
 	return err
 }
 
-func (l *L1L2NotConsistentOrca) GetE(req common.GetRequest) error {
+func (l *L1L2CassandraOrca) GetE(req common.GetRequest) error {
 	// The L1/L2 batch does not support getE, only L1Only does.
 	log.Println("[WARN] Use of unsupported GetE in L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Gat(req common.GATRequest) error {
+func (l *L1L2CassandraOrca) Gat(req common.GATRequest) error {
 	// Get and Touch is not yet implemented.
 	log.Println("[WARN] Get & Touch (GAT) command not supported by L1L2 NotConsistent orchestrator")
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Noop(req common.NoopRequest) error {
+func (l *L1L2CassandraOrca) Noop(req common.NoopRequest) error {
 	return l.res.Noop(req.Opaque)
 }
 
-func (l *L1L2NotConsistentOrca) Quit(req common.QuitRequest) error {
+func (l *L1L2CassandraOrca) Quit(req common.QuitRequest) error {
 	return l.res.Quit(req.Opaque, req.Quiet)
 }
 
-func (l *L1L2NotConsistentOrca) Version(req common.VersionRequest) error {
+func (l *L1L2CassandraOrca) Version(req common.VersionRequest) error {
 	return l.res.Version(req.Opaque)
 }
 
-func (l *L1L2NotConsistentOrca) Unknown(req common.Request) error {
+func (l *L1L2CassandraOrca) Unknown(req common.Request) error {
 	return common.ErrUnknownCmd
 }
 
-func (l *L1L2NotConsistentOrca) Error(req common.Request, reqType common.RequestType, err error) {
+func (l *L1L2CassandraOrca) Error(req common.Request, reqType common.RequestType, err error) {
 	var opaque uint32
 	var quiet bool
 
