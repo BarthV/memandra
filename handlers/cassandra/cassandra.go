@@ -16,7 +16,7 @@ func New() (handlers.Handler, error) {
 	// Only spawn a unique cassandra session per instance,
 	// store this session in a global singleton.
 	if singleton == nil {
-		clust := gocql.NewCluster("cassandra.hostname")
+		clust := gocql.NewCluster("10.228.14.38")
 		clust.Keyspace = "kvstore"
 		clust.Consistency = gocql.LocalOne
 		sess, err := clust.CreateSession()
@@ -115,6 +115,36 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
 	dataOut := make(chan common.GetEResponse, len(cmd.Keys))
 	errorOut := make(chan error)
+
+	for idx, key := range cmd.Keys {
+		key_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
+			values := make([]interface{}, 1)
+			values[0] = key
+			return values, nil
+		}
+
+		var val []byte
+
+		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val); err == nil {
+			dataOut <- common.GetEResponse{
+				Miss:   false,
+				Quiet:  cmd.Quiet[idx],
+				Opaque: cmd.Opaques[idx],
+				Flags:  0,
+				Key:    []byte(key),
+				Data:   val,
+			}
+		} else {
+			dataOut <- common.GetEResponse{
+				Miss:   true,
+				Quiet:  cmd.Quiet[idx],
+				Opaque: cmd.Opaques[idx],
+				Flags:  0,
+				Key:    []byte(key),
+				Data:   nil,
+			}
+		}
+	}
 
 	close(dataOut)
 	close(errorOut)
