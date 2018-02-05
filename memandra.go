@@ -18,7 +18,9 @@ func main() {
 	var h2 handlers.HandlerConst
 
 	h1 = cassandra.New
-	//h1 = inmem.New
+	// h1 = inmem.New
+	// h1 = memcached.Regular("/var/run/memcached/memcached.sock")
+	// h2 = cassandra.New
 	h2 = handlers.NilHandler
 
 	// TODO : write something better ;)
@@ -27,4 +29,5 @@ func main() {
 	ps := []protocol.Components{binprot.Components, textprot.Components}
 
 	server.ListenAndServe(l, ps, server.Default, orcas.L1Only, h1, h2)
+	// server.ListenAndServe(l, ps, server.Default, orcas.L1L2, h1, h2)
 }
