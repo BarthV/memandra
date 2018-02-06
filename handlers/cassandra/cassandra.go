@@ -41,13 +41,14 @@ func (h *Handler) Close() error {
 
 func (h *Handler) Set(cmd common.SetRequest) error {
 	kv_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
-		values := make([]interface{}, 2)
+		values := make([]interface{}, 3)
 		values[0] = cmd.Key
 		values[1] = cmd.Data
+		values[2] = cmd.Exptime
 		return values, nil
 	}
 
-	if err := h.session.Bind("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?)", kv_qi).Exec(); err != nil {
+	if err := h.session.Bind("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", kv_qi).Exec(); err != nil {
 		return err
 	}
 	return nil
@@ -100,7 +101,6 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
 				Opaque: cmd.Opaques[idx],
-				Flags:  0,
 				Key:    []byte(key),
 				Data:   nil,
 			}
@@ -124,22 +124,23 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 		}
 
 		var val []byte
+		var ttl uint32
 
-		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val); err == nil {
+		if err := h.session.Bind("SELECT keycol,valuecol,TTL(valuecol) FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val, &ttl); err == nil {
 			dataOut <- common.GetEResponse{
-				Miss:   false,
-				Quiet:  cmd.Quiet[idx],
-				Opaque: cmd.Opaques[idx],
-				Flags:  0,
-				Key:    []byte(key),
-				Data:   val,
+				Miss:    false,
+				Quiet:   cmd.Quiet[idx],
+				Opaque:  cmd.Opaques[idx],
+				Flags:   0,
+				Key:     []byte(key),
+				Data:    val,
+				Exptime: ttl,
 			}
 		} else {
 			dataOut <- common.GetEResponse{
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
 				Opaque: cmd.Opaques[idx],
-				Flags:  0,
 				Key:    []byte(key),
 				Data:   nil,
 			}
