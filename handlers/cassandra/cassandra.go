@@ -45,6 +45,7 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		values[0] = cmd.Key
 		values[1] = cmd.Data
 		values[2] = cmd.Exptime
+		// Flags is currently ignored
 		return values, nil
 	}
 

@@ -27,8 +27,14 @@ import (
 )
 
 var (
-	ErrL1L2SetFailed   = errors.New("ERROR Both L1 & L2 Set failed")
-	ErrL2OnlySetFailed = errors.New("ERROR L2Only Set failed")
+	// L1L2Cassandra specific errors
+	ErrL1L2SetFailed    = errors.New("ERROR Both L1 & L2 Set failed")
+	ErrL1SetAsyncFailed = errors.New("ERROR L1 Async Set failed")
+
+	// L1 Set after failed L2 set attempt metrics
+	MetricCmdSetL1NotInL2        = metrics.AddCounter("cmd_set_l1_not_in_l2", nil)
+	MetricCmdSetSuccessL1NotInL2 = metrics.AddCounter("cmd_set_l1_success_not_in_l2", nil)
+	MetricCmdSetErrorsL1NotInL2  = metrics.AddCounter("cmd_set_l1_errors_not_in_l2", nil)
 )
 
 type L1L2CassandraOrca struct {
@@ -45,62 +51,68 @@ func L1L2Cassandra(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
 	}
 }
 
-// This func aims at providing an async method to fill L2 after L1 set is ack'ed
-func (l *L1L2CassandraOrca) SetL2Only(req common.SetRequest) error {
-	// Set to L2
-	metrics.IncCounter(orcas.MetricCmdSetL2)
-	start := timer.Now()
-	errL2 := l.l2.Set(req)
+// This func aims at providing an async method to only set to L1 after L2 set is ack'ed
+func (l *L1L2CassandraOrca) SetL1(req common.SetRequest) error {
+	//log.Println("setL1", string(req.Key))
 
-	metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
-
-	// Return an error if data is not stored in L2
-	if errL2 != nil {
-		metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
-		return ErrL2OnlySetFailed
-	}
-
-	metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
-	// return code is ignored by goroutine caller (Set func)
-	return errL2
-}
-
-func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
-	//log.Println("set", string(req.Key))
-
-	// Set to L1 first
+	// Set to L1
 	metrics.IncCounter(orcas.MetricCmdSetL1)
 	start := timer.Now()
 	errL1 := l.l1.Set(req)
 
 	metrics.ObserveHist(orcas.HistSetL1, timer.Since(start))
 
+	// Return an error if data is not stored in L1
 	if errL1 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
-	} else {
-		// Successful write to L1 is a completed write !
-		metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
-		metrics.IncCounter(orcas.MetricCmdSetSuccess)
-		// Set L2 asynchronously. As L1 is OK, we don't check L2 success.
-		go l.SetL2Only(req)
-		return l.res.Set(req.Opaque, req.Quiet)
+		// return code is ignored by the caller (Set func) since L2 has the data
+		return ErrL1SetAsyncFailed
 	}
 
-	// If L1 Set failed, fallback to L2 Set
+	metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
+	// return code is ignored by goroutine caller (Set func) since L2 has the data
+	return errL1
+}
+
+func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
+	//log.Println("set", string(req.Key))
+
+	// Set to L1 first
 	metrics.IncCounter(orcas.MetricCmdSetL2)
-	start = timer.Now()
+	start := timer.Now()
 	errL2 := l.l2.Set(req)
 
 	metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
 
-	// Return an error if data is not stored in L2 either
 	if errL2 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
+	} else {
+		// Successful write to L2 is a completed write !
+		metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
+		metrics.IncCounter(orcas.MetricCmdSetSuccess)
+		// Set L1 asynchronously. As L2 is OK, we don't need to check L1 success.
+		go l.SetL1(req)
+		return l.res.Set(req.Opaque, req.Quiet)
+	}
+
+	// If L2 Set failed, fallback to L1 Set
+	// WARN : THIS IS A NON PERSISTED STORE AND IT SHOULD RAISE AN ALERT
+	metrics.IncCounter(MetricCmdSetL1NotInL2)
+	metrics.IncCounter(orcas.MetricCmdSetL1)
+	start = timer.Now()
+	errL1 := l.l1.Set(req)
+
+	metrics.ObserveHist(orcas.HistSetL1, timer.Since(start))
+
+	// Return an error if data is not stored in L1 either
+	if errL1 != nil {
+		metrics.IncCounter(MetricCmdSetErrorsL1NotInL2)
+		metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
 		metrics.IncCounter(orcas.MetricCmdSetErrors)
 		return ErrL1L2SetFailed
 	}
 
-	metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
+	metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
 	metrics.IncCounter(orcas.MetricCmdSetSuccess)
 	return l.res.Set(req.Opaque, req.Quiet)
 }
@@ -133,12 +145,12 @@ func (l *L1L2CassandraOrca) Delete(req common.DeleteRequest) error {
 	//log.Println("delete", string(req.Key))
 
 	// Try L2 first
-	metrics.IncCounter(MetricCmdDeleteL2)
+	metrics.IncCounter(orcas.MetricCmdDeleteL2)
 	start := timer.Now()
 
 	err := l.l2.Delete(req)
 
-	metrics.ObserveHist(HistDeleteL2, timer.Since(start))
+	metrics.ObserveHist(orcas.HistDeleteL2, timer.Since(start))
 
 	if err != nil {
 		// On a delete miss in L2 don't bother deleting in L1. There might be no
@@ -146,8 +158,8 @@ func (l *L1L2CassandraOrca) Delete(req common.DeleteRequest) error {
 		// case the other will finish up. Returning a key not found will trigger
 		// error handling to send back an error response.
 		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(MetricCmdDeleteMissesL2)
-			metrics.IncCounter(MetricCmdDeleteMisses)
+			metrics.IncCounter(orcas.MetricCmdDeleteMissesL2)
+			metrics.IncCounter(orcas.MetricCmdDeleteMisses)
 			return err
 		}
 
@@ -157,22 +169,22 @@ func (l *L1L2CassandraOrca) Delete(req common.DeleteRequest) error {
 		// rend, the L1 and L2 caches are both on the same box with
 		// communication happening over a unix domain socket. In this case, the
 		// likelihood of this error path happening is very small.
-		metrics.IncCounter(MetricCmdDeleteErrorsL2)
-		metrics.IncCounter(MetricCmdDeleteErrors)
+		metrics.IncCounter(orcas.MetricCmdDeleteErrorsL2)
+		metrics.IncCounter(orcas.MetricCmdDeleteErrors)
 		return err
 	}
-	metrics.IncCounter(MetricCmdDeleteHitsL2)
+	metrics.IncCounter(orcas.MetricCmdDeleteHitsL2)
 
 	// Now delete in L1. This means we're temporarily inconsistent, but also
 	// eliminated the interleaving where the data is deleted from L1, read from
 	// L2, set in L1, then deleted in L2. By deleting from L2 first, if L1 goes
 	// missing then no other request can undo part of this request.
-	metrics.IncCounter(MetricCmdDeleteL1)
+	metrics.IncCounter(orcas.MetricCmdDeleteL1)
 	start = timer.Now()
 
 	err = l.l1.Delete(req)
 
-	metrics.ObserveHist(HistDeleteL1, timer.Since(start))
+	metrics.ObserveHist(orcas.HistDeleteL1, timer.Since(start))
 
 	if err != nil {
 		// Delete misses in L1 are fine. If we get here, that means the delete
@@ -180,18 +192,18 @@ func (l *L1L2CassandraOrca) Delete(req common.DeleteRequest) error {
 		// delete. Concurrent deletes might interleave to produce this, or the
 		// data might have TTL'd out. Both cases are still fine.
 		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(MetricCmdDeleteMissesL1)
-			metrics.IncCounter(MetricCmdDeleteHits)
+			metrics.IncCounter(orcas.MetricCmdDeleteMissesL1)
+			metrics.IncCounter(orcas.MetricCmdDeleteHits)
 			// disregard the miss, don't return the error
 			return l.res.Delete(req.Opaque)
 		}
-		metrics.IncCounter(MetricCmdDeleteErrorsL1)
-		metrics.IncCounter(MetricCmdDeleteErrors)
+		metrics.IncCounter(orcas.MetricCmdDeleteErrorsL1)
+		metrics.IncCounter(orcas.MetricCmdDeleteErrors)
 		return err
 	}
 
-	metrics.IncCounter(MetricCmdDeleteHitsL1)
-	metrics.IncCounter(MetricCmdDeleteHits)
+	metrics.IncCounter(orcas.MetricCmdDeleteHitsL1)
+	metrics.IncCounter(orcas.MetricCmdDeleteHits)
 
 	return l.res.Delete(req.Opaque)
 }
@@ -203,7 +215,7 @@ func (l *L1L2CassandraOrca) Touch(req common.TouchRequest) error {
 }
 
 func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
-	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
+	metrics.IncCounterBy(orcas.MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
 	//for _, k := range req.Keys {
 	//	debugString += " "
@@ -211,8 +223,8 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 	//}
 	//println(debugString)
 
-	metrics.IncCounter(MetricCmdGetL1)
-	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
+	metrics.IncCounter(orcas.MetricCmdGetL1)
+	metrics.IncCounterBy(orcas.MetricCmdGetKeysL1, uint64(len(req.Keys)))
 	start := timer.Now()
 
 	resChan, errChan := l.l1.Get(req)
@@ -235,17 +247,18 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 				resChan = nil
 			} else {
 				if res.Miss {
-					metrics.IncCounter(MetricCmdGetMissesL1)
+					metrics.IncCounter(orcas.MetricCmdGetMissesL1)
 					l2keys = append(l2keys, res.Key)
 					l2opaques = append(l2opaques, res.Opaque)
 					l2quiets = append(l2quiets, res.Quiet)
 				} else {
-					metrics.IncCounter(MetricCmdGetHits)
-					metrics.IncCounter(MetricCmdGetHitsL1)
+					metrics.IncCounter(orcas.MetricCmdGetHits)
+					metrics.IncCounter(orcas.MetricCmdGetHitsL1)
 					// TODO: We can implement a read repair ratio consistency routine here
 					// This may force set in L2 from L1 data. By using a birthdate stored
 					// in FLAGS, we could determine if we're going to replace a newer data
-					// or not, and eventually stop the repair in this case !
+					// or not, and eventually stop the repair before replacing the key
+					// with an older value !
 					l.res.Get(res)
 				}
 			}
@@ -254,8 +267,8 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 			if !ok {
 				errChan = nil
 			} else {
-				metrics.IncCounter(MetricCmdGetErrors)
-				metrics.IncCounter(MetricCmdGetErrorsL1)
+				metrics.IncCounter(orcas.MetricCmdGetErrors)
+				metrics.IncCounter(orcas.MetricCmdGetErrorsL1)
 				err = getErr
 			}
 		}
@@ -266,7 +279,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 	}
 
 	// finish up metrics for overall L1 (batch) get operation
-	metrics.ObserveHist(HistGetL1, timer.Since(start))
+	metrics.ObserveHist(orcas.HistGetL1, timer.Since(start))
 
 	// leave early on all hits
 	if len(l2keys) == 0 {
@@ -285,8 +298,8 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 		Quiet:      l2quiets,
 	}
 
-	metrics.IncCounter(MetricCmdGetEL2)
-	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
+	metrics.IncCounter(orcas.MetricCmdGetEL2)
+	metrics.IncCounterBy(orcas.MetricCmdGetEKeysL2, uint64(len(l2keys)))
 	start = timer.Now()
 
 	resChanE, errChan := l.l2.GetE(req)
@@ -298,13 +311,13 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 				resChanE = nil
 			} else {
 				if res.Miss {
-					metrics.IncCounter(MetricCmdGetEMissesL2)
+					metrics.IncCounter(orcas.MetricCmdGetEMissesL2)
 					// Missing L2 means a true miss
-					metrics.IncCounter(MetricCmdGetMisses)
+					metrics.IncCounter(orcas.MetricCmdGetMisses)
 				} else {
-					metrics.IncCounter(MetricCmdGetEHitsL2)
+					metrics.IncCounter(orcas.MetricCmdGetEHitsL2)
 
-					// Fillback L2 data in L1
+					// Fillback L2 result in L1
 					setreq := common.SetRequest{
 						Key:     res.Key,
 						Flags:   res.Flags,
@@ -312,25 +325,25 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 						Data:    res.Data,
 					}
 
-					metrics.IncCounter(MetricCmdGetSetL1)
+					metrics.IncCounter(orcas.MetricCmdGetSetL1)
 					start2 := timer.Now()
 
 					// Using a Add instead a Set prevent overwriting concurrent Set in L1
 					err = l.l1.Add(setreq)
 
-					metrics.ObserveHist(HistSetL1, timer.Since(start2))
+					metrics.ObserveHist(orcas.HistSetL1, timer.Since(start2))
 
 					if err != nil {
-						// L1 Fillback failure is not a "real error",
-						// and this shouldn't happens most of the time though
-						metrics.IncCounter(MetricCmdGetSetErrorsL1)
+						// L1 Fillback failure is not a "real error", but is still annoying
+						// ... This shouldn't happens most of the time though
+						metrics.IncCounter(orcas.MetricCmdGetSetErrorsL1)
 						err = nil
 					} else {
-						metrics.IncCounter(MetricCmdGetSetSucessL1)
+						metrics.IncCounter(orcas.MetricCmdGetSetSucessL1)
 					}
 
 					// overall operation is considered as a hit
-					metrics.IncCounter(MetricCmdGetHits)
+					metrics.IncCounter(orcas.MetricCmdGetHits)
 				}
 
 				getres := common.GetResponse{
@@ -349,8 +362,8 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 			if !ok {
 				errChan = nil
 			} else {
-				metrics.IncCounter(MetricCmdGetErrors)
-				metrics.IncCounter(MetricCmdGetEErrorsL2)
+				metrics.IncCounter(orcas.MetricCmdGetErrors)
+				metrics.IncCounter(orcas.MetricCmdGetEErrorsL2)
 				err = getErr
 			}
 		}
@@ -361,7 +374,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 	}
 
 	// finish up metrics for overall L2 (batch) get operation
-	metrics.ObserveHist(HistGetL2, timer.Since(start))
+	metrics.ObserveHist(orcas.HistGetL2, timer.Since(start))
 
 	if err == nil {
 		return l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
