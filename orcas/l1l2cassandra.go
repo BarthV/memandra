@@ -318,6 +318,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 					metrics.IncCounter(orcas.MetricCmdGetEHitsL2)
 
 					// Fillback L2 result in L1
+					// TODO : make it async ?
 					setreq := common.SetRequest{
 						Key:     res.Key,
 						Flags:   res.Flags,
