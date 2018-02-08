@@ -52,7 +52,7 @@ func L1L2Cassandra(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
 }
 
 // This func aims at providing an async method to only set to L1 after L2 set is ack'ed
-func (l *L1L2CassandraOrca) SetL1(req common.SetRequest) error {
+func (l *L1L2CassandraOrca) SetL1(req common.SetRequest) {
 	//log.Println("setL1", string(req.Key))
 
 	// Set to L1
@@ -66,18 +66,18 @@ func (l *L1L2CassandraOrca) SetL1(req common.SetRequest) error {
 	if errL1 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
 		// return code is ignored by the caller (Set func) since L2 has the data
-		return ErrL1SetAsyncFailed
+		return
 	}
 
 	metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
 	// return code is ignored by goroutine caller (Set func) since L2 has the data
-	return errL1
+	return
 }
 
 func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
 	//log.Println("set", string(req.Key))
 
-	// Set to L1 first
+	// Set to L2 first
 	metrics.IncCounter(orcas.MetricCmdSetL2)
 	start := timer.Now()
 	errL2 := l.l2.Set(req)
@@ -90,8 +90,7 @@ func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
 		// Successful write to L2 is a completed write !
 		metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
 		metrics.IncCounter(orcas.MetricCmdSetSuccess)
-		// Set L1 asynchronously. As L2 is OK, we don't need to check L1 success.
-		go l.SetL1(req)
+		l.SetL1(req)
 		return l.res.Set(req.Opaque, req.Quiet)
 	}
 

@@ -16,7 +16,7 @@ func New() (handlers.Handler, error) {
 	// Only spawn a unique cassandra session per instance,
 	// store this session in a global singleton.
 	if singleton == nil {
-		clust := gocql.NewCluster("10.228.14.38")
+		clust := gocql.NewCluster("cassandra.hostname")
 		clust.Keyspace = "kvstore"
 		clust.Consistency = gocql.LocalOne
 		sess, err := clust.CreateSession()
