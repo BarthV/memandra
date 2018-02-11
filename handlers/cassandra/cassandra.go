@@ -31,6 +31,18 @@ func unsetFlushingState() {
 	singleton.isFlushing = false
 }
 
+func bufferSizeCheckLoop() {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			if len(singleton.setbuffer) >= 30000 {
+				go flushBuffer()
+			}
+		}
+	}
+}
+
 func flushBuffer() {
 	if singleton.isFlushing {
 		return
@@ -40,22 +52,17 @@ func flushBuffer() {
 	singleton.isFlushing = true
 	defer unsetFlushingState()
 	defer singleton.flushLock.Unlock()
+	chanLen := len(singleton.setbuffer)
 
-	if len(singleton.setbuffer) > 0 {
-		fmt.Println("== Starting a real buffer flush ! ")
-		fmt.Println("== Items in queue ")
-		fmt.Println(len(singleton.setbuffer))
+	if chanLen > 0 {
+		fmt.Println(chanLen)
 		b := singleton.session.NewBatch(gocql.UnloggedBatch)
-		for i := 1; i <= len(singleton.setbuffer); i++ {
+		for i := 1; i <= chanLen; i++ {
 			item := (<-singleton.setbuffer)
-			// fmt.Println(string(item.Key))
 			b.Query("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", item.Key, item.Data, item.Exptime)
 		}
 		// exec CQL batch
 		singleton.session.ExecuteBatch(b)
-		fmt.Println("== flush done ")
-		fmt.Println("== Items in queue before timer reset")
-		fmt.Println(len(singleton.setbuffer))
 	}
 	singleton.buffertimer.Reset(200 * time.Millisecond)
 }
@@ -72,13 +79,6 @@ func New() (handlers.Handler, error) {
 			return nil, err
 		}
 
-		// b := singleton.session.NewBatch(gocql.UnloggedBatch)
-		//   for _, item := range batch {
-		//  	b.Query("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", item.Key, item.Data, item.Exptime)
-		// }
-		// 	singleton.session.ExecuteBatch(b)
-		// })
-
 		singleton = &Handler{
 			session:     sess,
 			setbuffer:   make(chan CassandraSet, 500000),
@@ -86,6 +86,8 @@ func New() (handlers.Handler, error) {
 			flushLock:   &sync.Mutex{},
 			isFlushing:  false,
 		}
+
+		go bufferSizeCheckLoop()
 	}
 
 	// TODO : prepare Cassandra statements for common queries
@@ -105,9 +107,6 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		Data:    cmd.Data,
 		Flags:   cmd.Flags,
 		Exptime: cmd.Exptime,
-	}
-	if len(h.setbuffer) >= 20000 {
-		go flushBuffer()
 	}
 	return nil
 }
