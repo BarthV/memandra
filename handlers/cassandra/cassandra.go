@@ -1,30 +1,90 @@
 package cassandra
 
 import (
+	"fmt"
+	"sync"
+	"time"
+
 	"github.com/gocql/gocql"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 )
 
 type Handler struct {
-	session *gocql.Session
+	session     *gocql.Session
+	setbuffer   chan CassandraSet
+	buffertimer *time.Timer
+	flushLock   *sync.Mutex
+	isFlushing  bool
+}
+
+type CassandraSet struct {
+	Key     []byte
+	Data    []byte
+	Flags   uint32
+	Exptime uint32
 }
 
 var singleton *Handler
+
+func unsetFlushingState() {
+	singleton.isFlushing = false
+}
+
+func flushBuffer() {
+	if singleton.isFlushing {
+		return
+	}
+
+	singleton.flushLock.Lock()
+	singleton.isFlushing = true
+	defer unsetFlushingState()
+	defer singleton.flushLock.Unlock()
+
+	if len(singleton.setbuffer) > 0 {
+		fmt.Println("== Starting a real buffer flush ! ")
+		fmt.Println("== Items in queue ")
+		fmt.Println(len(singleton.setbuffer))
+		b := singleton.session.NewBatch(gocql.UnloggedBatch)
+		for i := 1; i <= len(singleton.setbuffer); i++ {
+			item := (<-singleton.setbuffer)
+			// fmt.Println(string(item.Key))
+			b.Query("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", item.Key, item.Data, item.Exptime)
+		}
+		// exec CQL batch
+		singleton.session.ExecuteBatch(b)
+		fmt.Println("== flush done ")
+		fmt.Println("== Items in queue before timer reset")
+		fmt.Println(len(singleton.setbuffer))
+	}
+	singleton.buffertimer.Reset(200 * time.Millisecond)
+}
 
 func New() (handlers.Handler, error) {
 	// Only spawn a unique cassandra session per instance,
 	// store this session in a global singleton.
 	if singleton == nil {
-		clust := gocql.NewCluster("cassandra.hostname")
+		clust := gocql.NewCluster("10.228.14.38")
 		clust.Keyspace = "kvstore"
 		clust.Consistency = gocql.LocalOne
 		sess, err := clust.CreateSession()
 		if err != nil {
 			return nil, err
 		}
+
+		// b := singleton.session.NewBatch(gocql.UnloggedBatch)
+		//   for _, item := range batch {
+		//  	b.Query("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", item.Key, item.Data, item.Exptime)
+		// }
+		// 	singleton.session.ExecuteBatch(b)
+		// })
+
 		singleton = &Handler{
-			session: sess,
+			session:     sess,
+			setbuffer:   make(chan CassandraSet, 500000),
+			buffertimer: time.AfterFunc(200*time.Millisecond, flushBuffer),
+			flushLock:   &sync.Mutex{},
+			isFlushing:  false,
 		}
 	}
 
@@ -40,17 +100,14 @@ func (h *Handler) Close() error {
 }
 
 func (h *Handler) Set(cmd common.SetRequest) error {
-	kv_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
-		values := make([]interface{}, 3)
-		values[0] = cmd.Key
-		values[1] = cmd.Data
-		values[2] = cmd.Exptime
-		// Flags is currently ignored
-		return values, nil
+	h.setbuffer <- CassandraSet{
+		Key:     cmd.Key,
+		Data:    cmd.Data,
+		Flags:   cmd.Flags,
+		Exptime: cmd.Exptime,
 	}
-
-	if err := h.session.Bind("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", kv_qi).Exec(); err != nil {
-		return err
+	if len(h.setbuffer) >= 20000 {
+		go flushBuffer()
 	}
 	return nil
 }
