@@ -1,8 +1,6 @@
 package cassandra
 
 import (
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -14,8 +12,8 @@ type Handler struct {
 	session     *gocql.Session
 	setbuffer   chan CassandraSet
 	buffertimer *time.Timer
-	flushLock   *sync.Mutex
-	isFlushing  bool
+	// flushLock   *sync.Mutex
+	// isFlushing  bool
 }
 
 type CassandraSet struct {
@@ -28,7 +26,7 @@ type CassandraSet struct {
 var singleton *Handler
 
 func unsetFlushingState() {
-	singleton.isFlushing = false
+	// singleton.isFlushing = false
 }
 
 func bufferSizeCheckLoop() {
@@ -36,7 +34,7 @@ func bufferSizeCheckLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			if len(singleton.setbuffer) >= 30000 {
+			if len(singleton.setbuffer) >= 450 {
 				go flushBuffer()
 			}
 		}
@@ -44,18 +42,21 @@ func bufferSizeCheckLoop() {
 }
 
 func flushBuffer() {
-	if singleton.isFlushing {
+	/* if singleton.isFlushing {
 		return
 	}
 
 	singleton.flushLock.Lock()
 	singleton.isFlushing = true
 	defer unsetFlushingState()
-	defer singleton.flushLock.Unlock()
+	defer singleton.flushLock.Unlock() */
 	chanLen := len(singleton.setbuffer)
 
 	if chanLen > 0 {
-		fmt.Println(chanLen)
+		// fmt.Println(chanLen)
+		if chanLen >= 4500 {
+			chanLen = 4500
+		}
 		b := singleton.session.NewBatch(gocql.UnloggedBatch)
 		for i := 1; i <= chanLen; i++ {
 			item := (<-singleton.setbuffer)
@@ -83,8 +84,8 @@ func New() (handlers.Handler, error) {
 			session:     sess,
 			setbuffer:   make(chan CassandraSet, 500000),
 			buffertimer: time.AfterFunc(200*time.Millisecond, flushBuffer),
-			flushLock:   &sync.Mutex{},
-			isFlushing:  false,
+			// flushLock:   &sync.Mutex{},
+			// isFlushing:  false,
 		}
 
 		go bufferSizeCheckLoop()
