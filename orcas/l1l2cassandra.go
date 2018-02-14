@@ -315,7 +315,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 					start2 := timer.Now()
 
 					// Using a Add instead a Set prevent overwriting concurrent Set in L1
-					err = l.l1.Add(setreq)
+					err = l.l1.Set(setreq)
 
 					metrics.ObserveHist(orcas.HistSetL1, timer.Since(start2))
 
