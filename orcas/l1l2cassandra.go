@@ -51,29 +51,6 @@ func L1L2Cassandra(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
 	}
 }
 
-// This func aims at providing an async method to only set to L1 after L2 set is ack'ed
-func (l *L1L2CassandraOrca) SetL1(req common.SetRequest) {
-	//log.Println("setL1", string(req.Key))
-
-	// Set to L1
-	metrics.IncCounter(orcas.MetricCmdSetL1)
-	start := timer.Now()
-	errL1 := l.l1.Set(req)
-
-	metrics.ObserveHist(orcas.HistSetL1, timer.Since(start))
-
-	// Return an error if data is not stored in L1
-	if errL1 != nil {
-		metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
-		// return code is ignored by the caller (Set func) since L2 has the data
-		return
-	}
-
-	metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
-	// return code is ignored by goroutine caller (Set func) since L2 has the data
-	return
-}
-
 func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
 	//log.Println("set", string(req.Key))
 
@@ -87,10 +64,23 @@ func (l *L1L2CassandraOrca) Set(req common.SetRequest) error {
 	if errL2 != nil {
 		metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
 	} else {
+		// Set to L1
+		metrics.IncCounter(orcas.MetricCmdSetL1)
+		start := timer.Now()
+		errL1 := l.l1.Set(req)
+
+		metrics.ObserveHist(orcas.HistSetL1, timer.Since(start))
+
+		// Log an an error in metrics if data is not stored in L1
+		if errL1 != nil {
+			metrics.IncCounter(orcas.MetricCmdSetErrorsL1)
+		} else {
+			metrics.IncCounter(orcas.MetricCmdSetSuccessL1)
+		}
+
 		// Successful write to L2 is a completed write !
 		metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
 		metrics.IncCounter(orcas.MetricCmdSetSuccess)
-		l.SetL1(req)
 		return l.res.Set(req.Opaque, req.Quiet)
 	}
 
@@ -253,11 +243,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 				} else {
 					metrics.IncCounter(orcas.MetricCmdGetHits)
 					metrics.IncCounter(orcas.MetricCmdGetHitsL1)
-					// TODO: We can implement a read repair ratio consistency routine here
-					// This may force set in L2 from L1 data. By using a birthdate stored
-					// in FLAGS, we could determine if we're going to replace a newer data
-					// or not, and eventually stop the repair before replacing the key
-					// with an older value !
+
 					l.res.Get(res)
 				}
 			}
@@ -280,7 +266,7 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 	// finish up metrics for overall L1 (batch) get operation
 	metrics.ObserveHist(orcas.HistGetL1, timer.Since(start))
 
-	// leave early on all hits
+	// leave early on all hits OR a get error in L1
 	if len(l2keys) == 0 {
 		if err != nil {
 			return err
@@ -317,12 +303,12 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 					metrics.IncCounter(orcas.MetricCmdGetEHitsL2)
 
 					// Fillback L2 result in L1
-					// TODO : make it async ?
 					setreq := common.SetRequest{
 						Key:     res.Key,
+						Data:    res.Data,
 						Flags:   res.Flags,
 						Exptime: res.Exptime,
-						Data:    res.Data,
+						Quiet:   res.Quiet,
 					}
 
 					metrics.IncCounter(orcas.MetricCmdGetSetL1)
