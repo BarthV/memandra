@@ -9,3 +9,4 @@ import:
   - protocol
 - package: github.com/Sirupsen/logrus
 - package: github.com/gocql/gocql
+- package: github.com/spf13/viper

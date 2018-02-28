@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
-	"strconv"
+	"time"
 
 	"github.com/BarthV/memandra/handlers/cassandra"
 	"github.com/BarthV/memandra/orcas"
@@ -14,6 +14,7 @@ import (
 	"github.com/netflix/rend/protocol/binprot"
 	"github.com/netflix/rend/protocol/textprot"
 	"github.com/netflix/rend/server"
+	"github.com/spf13/viper"
 )
 
 func main() {
@@ -21,8 +22,21 @@ func main() {
 		debug.SetGCPercent(100)
 	}
 
+	viper.SetDefault("ListenPort", 11221)
+	viper.SetDefault("InternalMetricsListenAddress", ":11299")
+	viper.SetDefault("CassandraHostname", "127.0.0.1")
+	viper.SetDefault("CassandraKeyspace", "kvstore")
+	viper.SetDefault("CassandraBucket", "bucket")
+	viper.SetDefault("CassandraBatchBufferItemSize", 80000)
+	viper.SetDefault("CassandraBatchBufferMaxAgeMs", 200*time.Millisecond)
+	viper.SetDefault("CassandraBatchMinItemSize", 1000)
+	viper.SetDefault("CassandraBatchMaxItemSize", 5000)
+	viper.SetDefault("CassandraTimeoutMs", 1000*time.Millisecond)
+	viper.SetDefault("CassandraConnectTimeoutMs", 1000*time.Millisecond)
+	viper.SetDefault("MemcachedSocket", "/var/run/memcached/memcached.sock")
+
 	// http debug and metrics endpoint
-	go http.ListenAndServe("localhost:11299", nil)
+	go http.ListenAndServe(viper.GetString("InternalMetricsListenAddress"), nil)
 
 	// metrics output prefix
 	// metrics.SetPrefix("memandra_")
@@ -35,12 +49,10 @@ func main() {
 	// h2 = handlers.NilHandler
 	//
 	// L1L2 MODE
-	h1 = memcached.Regular("/var/run/memcached/memcached.sock")
+	h1 = memcached.Regular(viper.GetString("MemcachedSocket"))
 	h2 = cassandra.New
 
-	// TODO : write something better ;)
-	port, _ := strconv.Atoi(os.Getenv("PORT0"))
-	l := server.TCPListener(port)
+	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
 
 	// server.ListenAndServe(l, ps, server.Default, orcas.L1Only, h1, h2)

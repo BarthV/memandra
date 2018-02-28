@@ -1,5 +1,5 @@
-hash: 64c60fbe64391586e3c02582c7ae76d667040af8cbbfefb026ef2ce520d4126e
-updated: 2018-02-11T13:00:16.116662604+01:00
+hash: f25ee53178639724bc9dd84f338654d12216afb34a037512ee389bf5f9e4b3c8
+updated: 2018-02-28T15:25:28.058181069+01:00
 imports:
 - name: github.com/gocql/gocql
   version: 59441a623b364472525164bb62b6da9d552eb2ca
@@ -29,6 +29,8 @@ imports:
   - timer
 - name: github.com/Sirupsen/logrus
   version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
+- name: github.com/spf13/viper
+  version: aafc9e6bc7b7bb53ddaa75a5ef49a17d6e654be5
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 testImports: []

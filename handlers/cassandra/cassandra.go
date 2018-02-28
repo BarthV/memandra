@@ -1,11 +1,13 @@
 package cassandra
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
+	"github.com/spf13/viper"
 )
 
 type Handler struct {
@@ -34,7 +36,7 @@ func bufferSizeCheckLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			if len(singleton.setbuffer) >= 1000 {
+			if len(singleton.setbuffer) >= viper.GetInt("CassandraBatchMinItemSize") {
 				go flushBuffer()
 			}
 		}
@@ -54,13 +56,22 @@ func flushBuffer() {
 
 	if chanLen > 0 {
 		// fmt.Println(chanLen)
-		if chanLen >= 5000 {
-			chanLen = 5000
+		if chanLen >= viper.GetInt("CassandraBatchMaxItemSize") {
+			chanLen = viper.GetInt("CassandraBatchMaxItemSize")
 		}
 		b := singleton.session.NewBatch(gocql.UnloggedBatch)
 		for i := 1; i <= chanLen; i++ {
 			item := (<-singleton.setbuffer)
-			b.Query("INSERT INTO kvstore.bucket1 (keycol,valuecol) VALUES (?, ?) USING TTL ?", item.Key, item.Data, item.Exptime)
+			b.Query(
+				fmt.Sprintf(
+					"INSERT INTO %s.%s (keycol,valuecol) VALUES (?, ?) USING TTL ?",
+					viper.GetString("CassandraKeyspace"),
+					viper.GetString("CassandraBucket"),
+				),
+				item.Key,
+				item.Data,
+				item.Exptime,
+			)
 		}
 		// exec CQL batch
 		singleton.session.ExecuteBatch(b)
@@ -72,11 +83,11 @@ func New() (handlers.Handler, error) {
 	// Only spawn a unique cassandra session per instance,
 	// store this session in a global singleton.
 	if singleton == nil {
-		clust := gocql.NewCluster("10.228.14.38")
-		clust.Keyspace = "kvstore"
+		clust := gocql.NewCluster(viper.GetString("CassandraHostname"))
+		clust.Keyspace = viper.GetString("CassandraKeyspace")
 		clust.Consistency = gocql.LocalOne
-		clust.Timeout = time.Second
-		clust.ConnectTimeout = time.Second
+		clust.Timeout = viper.GetDuration("CassandraTimeoutMs")
+		clust.ConnectTimeout = viper.GetDuration("CassandraConnectTimeoutMs")
 		sess, err := clust.CreateSession()
 		if err != nil {
 			return nil, err
@@ -84,8 +95,8 @@ func New() (handlers.Handler, error) {
 
 		singleton = &Handler{
 			session:     sess,
-			setbuffer:   make(chan CassandraSet, 80000),
-			buffertimer: time.AfterFunc(200*time.Millisecond, flushBuffer),
+			setbuffer:   make(chan CassandraSet, viper.GetInt("CassandraBatchBufferItemSize")),
+			buffertimer: time.AfterFunc(viper.GetDuration("CassandraBatchBufferMaxAgeMs"), flushBuffer),
 			// flushLock:   &sync.Mutex{},
 			// isFlushing:  false,
 		}
@@ -147,7 +158,14 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 
 		var val []byte
 
-		if err := h.session.Bind("SELECT keycol,valuecol FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val); err == nil {
+		if err := h.session.Bind(
+			fmt.Sprintf(
+				"SELECT keycol,valuecol FROM %s.%s where keycol=?",
+				viper.GetString("CassandraKeyspace"),
+				viper.GetString("CassandraBucket"),
+			),
+			key_qi,
+		).Scan(&key, &val); err == nil {
 			dataOut <- common.GetResponse{
 				Miss:   false,
 				Quiet:  cmd.Quiet[idx],
@@ -186,7 +204,14 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 		var val []byte
 		var ttl uint32
 
-		if err := h.session.Bind("SELECT keycol,valuecol,TTL(valuecol) FROM kvstore.bucket1 where keycol=?", key_qi).Scan(&key, &val, &ttl); err == nil {
+		if err := h.session.Bind(
+			fmt.Sprintf(
+				"SELECT keycol,valuecol,TTL(valuecol) FROM %s.%s where keycol=?",
+				viper.GetString("CassandraKeyspace"),
+				viper.GetString("CassandraBucket"),
+			),
+			key_qi,
+		).Scan(&key, &val, &ttl); err == nil {
 			dataOut <- common.GetEResponse{
 				Miss:    false,
 				Quiet:   cmd.Quiet[idx],
@@ -227,7 +252,14 @@ func (h *Handler) Delete(cmd common.DeleteRequest) error {
 		return values, nil
 	}
 
-	if err := h.session.Bind("DELETE FROM kvstore.bucket1 WHERE keycol=?", kv_qi).Exec(); err != nil {
+	if err := h.session.Bind(
+		fmt.Sprintf(
+			"DELETE FROM %s.%s WHERE keycol=?",
+			viper.GetString("CassandraKeyspace"),
+			viper.GetString("CassandraBucket"),
+		),
+		kv_qi,
+	).Exec(); err != nil {
 		return err
 	}
 	return nil
