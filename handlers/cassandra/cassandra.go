@@ -75,6 +75,8 @@ func New() (handlers.Handler, error) {
 		clust := gocql.NewCluster("10.228.14.38")
 		clust.Keyspace = "kvstore"
 		clust.Consistency = gocql.LocalOne
+		clust.Timeout = time.Second
+		clust.ConnectTimeout = time.Second
 		sess, err := clust.CreateSession()
 		if err != nil {
 			return nil, err

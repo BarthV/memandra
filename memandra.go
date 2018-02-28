@@ -10,7 +10,6 @@ import (
 	"github.com/BarthV/memandra/orcas"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/handlers/memcached"
-	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/protocol/binprot"
 	"github.com/netflix/rend/protocol/textprot"
@@ -26,7 +25,7 @@ func main() {
 	go http.ListenAndServe("localhost:11299", nil)
 
 	// metrics output prefix
-	metrics.SetPrefix("memandra_")
+	// metrics.SetPrefix("memandra_")
 
 	var h1 handlers.HandlerConst
 	var h2 handlers.HandlerConst
