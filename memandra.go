@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -17,11 +18,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-func main() {
-	if _, set := os.LookupEnv("GOGC"); !set {
-		debug.SetGCPercent(100)
-	}
-
+func init_config() {
+	log.Println("Initializing configuration")
 	viper.SetDefault("ListenPort", 11221)
 	viper.SetDefault("InternalMetricsListenAddress", ":11299")
 	viper.SetDefault("CassandraHostname", "127.0.0.1")
@@ -34,6 +32,31 @@ func main() {
 	viper.SetDefault("CassandraTimeoutMs", 1000*time.Millisecond)
 	viper.SetDefault("CassandraConnectTimeoutMs", 1000*time.Millisecond)
 	viper.SetDefault("MemcachedSocket", "/var/run/memcached/memcached.sock")
+}
+
+func load_config_from_env() {
+	log.Println("Mapping configuration from environment")
+	viper.BindEnv("ListenPort", "LISTENPORT")
+	viper.BindEnv("InternalMetricsListenAddress", "METRICSLISTENADDR")
+	viper.BindEnv("CassandraHostname", "CASSANDRAHOST")
+	viper.BindEnv("CassandraKeyspace", "CASSANDRAKEYSPACE")
+	viper.BindEnv("CassandraBucket", "CASSANDRABUCKET")
+	viper.BindEnv("CassandraBatchBufferItemSize", "BUFFERITEMSIZE")
+	viper.BindEnv("CassandraBatchBufferMaxAgeMs", "BUFFERMAXAGE")
+	viper.BindEnv("CassandraBatchMinItemSize", "BATCHMINSIZE")
+	viper.BindEnv("CassandraBatchMaxItemSize", "BATCHMINSIZE")
+	viper.BindEnv("CassandraTimeoutMs", "CASSANDRATIMEOUT")
+	viper.BindEnv("CassandraConnectTimeoutMs", "CASSANDRACONNTIMEOUT")
+	viper.BindEnv("MemcachedSocket", "MEMCACHEDSOCKETPATH")
+}
+
+func main() {
+	if _, set := os.LookupEnv("GOGC"); !set {
+		debug.SetGCPercent(100)
+	}
+
+	init_config()
+	load_config_from_env()
 
 	// http debug and metrics endpoint
 	go http.ListenAndServe(viper.GetString("InternalMetricsListenAddress"), nil)
