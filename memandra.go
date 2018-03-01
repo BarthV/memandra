@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func init_config() {
+func init_default_config() {
 	log.Println("Initializing configuration")
 	viper.SetDefault("ListenPort", 11221)
 	viper.SetDefault("InternalMetricsListenAddress", ":11299")
@@ -55,7 +55,7 @@ func main() {
 		debug.SetGCPercent(100)
 	}
 
-	init_config()
+	init_default_config()
 	load_config_from_env()
 
 	// http debug and metrics endpoint
