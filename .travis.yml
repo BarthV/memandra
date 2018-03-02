@@ -24,9 +24,9 @@ deploy:
   api_key:
     secure: g1h3+JvhpxRQ+a8T9v1uHPIYJCAb3Pboc02GCm+kjTJKDehX9xNSss0SC/c8a7BXpdgn0OuZfI67OulfAxGBcnT+lkwJAY8lashkdw+IM5OztFL2MTq/25lB6WBubwZ6txDerQ8DtdKvmedWxkTUYjZFbPwcH6CXbcqCoYNZtusQ0NLaBRV9ucBgtJWD3Aq5QZUdoih3xEbhKPmJys5wHnB2nrmj/qeqCGaOgDN3KLmDu3XUmYVv7jRM4SDyoT9QtUseBk0fJxFUlturOg0BlBb7Pyp3cew1ja2+Kn33qkavkDIw/a8zl1XeXYpPc0KAEK/bxcUJfhG48gOEV00FnYLZTTdTrCZIh6agc6zBIA2MjL3gq42zrRcVZBAyOwxlZu40dKACWHVt/bY7VkblhUAUr/6D64H200kl/XfcC9iTQZ1zRbRxgF33BLCRAn2YXpqJ3dwwNgBhzOfFDWpy5WcdYWlHe9+Is4cLH1a2XMz6ajGnCdEwdgyBnPvJu7W9pLy+hB6VTPdyZiMmU++vhxfqUc7YaAXHWOBAy8fl4bloZvV3X50qlKpe6nxAA1vlnttKsCNgzmmwRiMTq4QumO5nYry4IUEVTQBy/yI9GFId6PxRZgQ9KIQd22OAxjkh7pVLM9ancRVQBbbUAMhWQ1wWTnhjcgY9Iy7r0JwhDvA=
   file:
-    - "memandra.linux.amd64"
-    - "memandra.darwin.amd64"
-    - "memandra.windows.amd64.exe"
+    - "memandra_linux_amd64"
+    - "memandra_darwin_amd64"
+    - "memandra_windows_amd64.exe"
   skip_cleanup: true
   on:
     repo: BarthV/memandra
