@@ -1,13 +1,34 @@
 language: go
-go:
-  - tip
+matrix:
+  include:
+    - go: 1.x
+      env: RELEASE_VERSION=true
+    - go: 1.10.x
+    - go: tip
+  allow_failures:
+    - go: tip
+
+# simple cross compile tool for go
+before_install:
+  - go get github.com/mitchellh/gox
+
+install:
+  - # skip
+
 script:
-  - go build
+  - go test -v -race ./...
+  - if [ "RELEASE_VERSION"  = "true" ]; then gox -os="linux darwin windows" -arch="amd64" -output="memandra.." -ldflags "-S main.Rev=`git rev-parse --short HEAD`" -versbose ./...; fi
+
 deploy:
   provider: releases
   api_key:
     secure: g1h3+JvhpxRQ+a8T9v1uHPIYJCAb3Pboc02GCm+kjTJKDehX9xNSss0SC/c8a7BXpdgn0OuZfI67OulfAxGBcnT+lkwJAY8lashkdw+IM5OztFL2MTq/25lB6WBubwZ6txDerQ8DtdKvmedWxkTUYjZFbPwcH6CXbcqCoYNZtusQ0NLaBRV9ucBgtJWD3Aq5QZUdoih3xEbhKPmJys5wHnB2nrmj/qeqCGaOgDN3KLmDu3XUmYVv7jRM4SDyoT9QtUseBk0fJxFUlturOg0BlBb7Pyp3cew1ja2+Kn33qkavkDIw/a8zl1XeXYpPc0KAEK/bxcUJfhG48gOEV00FnYLZTTdTrCZIh6agc6zBIA2MjL3gq42zrRcVZBAyOwxlZu40dKACWHVt/bY7VkblhUAUr/6D64H200kl/XfcC9iTQZ1zRbRxgF33BLCRAn2YXpqJ3dwwNgBhzOfFDWpy5WcdYWlHe9+Is4cLH1a2XMz6ajGnCdEwdgyBnPvJu7W9pLy+hB6VTPdyZiMmU++vhxfqUc7YaAXHWOBAy8fl4bloZvV3X50qlKpe6nxAA1vlnttKsCNgzmmwRiMTq4QumO5nYry4IUEVTQBy/yI9GFId6PxRZgQ9KIQd22OAxjkh7pVLM9ancRVQBbbUAMhWQ1wWTnhjcgY9Iy7r0JwhDvA=
-  file: "memandra"
+  file:
+    - "memandra.linux.amd64"
+    - "memandra.darwin.amd64"
+    - "memandra.windows.amd64.exe"
   skip_cleanup: true
   on:
+    repo: BarthV/memandra
     tags: true
+    condition: $RELEASE_VERSION = true
