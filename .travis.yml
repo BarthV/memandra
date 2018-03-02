@@ -17,7 +17,7 @@ install:
 
 script:
   - go test -v -race ./...
-  - if [ "RELEASE_VERSION"  = "true" ]; then gox -os="linux darwin windows" -arch="amd64" -output="memandra.." -ldflags "-S main.Rev=`git rev-parse --short HEAD`" -versbose ./...; fi
+  - if [ "${RELEASE_VERSION}"  = "true" ]; then gox -os="linux darwin windows" -arch="amd64" -output="memandra.." -ldflags "-S main.Rev=`git rev-parse --short HEAD`" -versbose ./...; fi
 
 deploy:
   provider: releases
