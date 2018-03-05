@@ -44,7 +44,7 @@ func load_config_from_env() {
 	viper.BindEnv("CassandraBatchBufferItemSize", "BUFFERITEMSIZE")
 	viper.BindEnv("CassandraBatchBufferMaxAgeMs", "BUFFERMAXAGE")
 	viper.BindEnv("CassandraBatchMinItemSize", "BATCHMINSIZE")
-	viper.BindEnv("CassandraBatchMaxItemSize", "BATCHMINSIZE")
+	viper.BindEnv("CassandraBatchMaxItemSize", "BATCHMAXSIZE")
 	viper.BindEnv("CassandraTimeoutMs", "CASSANDRATIMEOUT")
 	viper.BindEnv("CassandraConnectTimeoutMs", "CASSANDRACONNTIMEOUT")
 	viper.BindEnv("MemcachedSocket", "MEMCACHEDSOCKETPATH")
