@@ -205,15 +205,30 @@ func printTags(tags Tags) string {
 	return string(ret)
 }
 
+func getMetricType(tags Tags) string {
+	// supported : gauge & counter (default is gauge)
+	for k, v := range tags {
+		if string(k) == "type" {
+			switch string(v) {
+			case "gauge":
+				return "gauge"
+			case "counter":
+				return "counter"
+			}
+		}
+	}
+	return "gauge"
+}
+
 func printIntMetrics(w io.Writer, metrics []IntMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.Name, printTags(m.Tgs), m.Val)
+		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{} %d\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, m.Val)
 	}
 }
 
 func printFloatMetrics(w io.Writer, metrics []FloatMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.Name, printTags(m.Tgs), m.Val)
+		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{} %f\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, m.Val)
 	}
 }
 
