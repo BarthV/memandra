@@ -175,6 +175,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	im = append(im, intcb...)
 	fm = append(fm, floatcb...)
 
+	fmt.Fprintf(w, "# TYPE %smemandra_metrics gauge\n", prefix)
 	printIntMetrics(w, im)
 	printFloatMetrics(w, fm)
 }
@@ -225,9 +226,9 @@ func getPercentile(tags Tags) string {
 	for k, v := range tags {
 		switch string(k) {
 		case "statistic":
-			return fmt.Sprintf("percentile=\"%s\"", string(v))
+			return fmt.Sprintf("percentile=\"%s\",", string(v))
 		case "percentile":
-			return fmt.Sprintf("percentile=\"%s\"", string(v))
+			return fmt.Sprintf("percentile=\"%s\",", string(v))
 		}
 	}
 	return ""
@@ -235,13 +236,13 @@ func getPercentile(tags Tags) string {
 
 func printIntMetrics(w io.Writer, metrics []IntMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{%s} %d\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, getPercentile(m.Tgs), m.Val)
+		fmt.Fprintf(w, "%smemandra_metrics{%smetric=\"%s\",type=\"%s\"} %d\n", prefix, getPercentile(m.Tgs), m.Name, getMetricType(m.Tgs), m.Val)
 	}
 }
 
 func printFloatMetrics(w io.Writer, metrics []FloatMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{%s} %f\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, getPercentile(m.Tgs), m.Val)
+		fmt.Fprintf(w, "%smemandra_metrics{%smetric=\"%s\",type=\"%s\"} %f\n", prefix, getPercentile(m.Tgs), m.Name, getMetricType(m.Tgs), m.Val)
 	}
 }
 
