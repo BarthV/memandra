@@ -220,15 +220,28 @@ func getMetricType(tags Tags) string {
 	return "gauge"
 }
 
+func getPercentile(tags Tags) string {
+	// supported : gauge & counter (default is gauge)
+	for k, v := range tags {
+		switch string(k) {
+		case "statistic":
+			return fmt.Sprintf("percentile=\"%s\"", string(v))
+		case "percentile":
+			return fmt.Sprintf("percentile=\"%s\"", string(v))
+		}
+	}
+	return ""
+}
+
 func printIntMetrics(w io.Writer, metrics []IntMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{} %d\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, m.Val)
+		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{%s} %d\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, getPercentile(m.Tgs), m.Val)
 	}
 }
 
 func printFloatMetrics(w io.Writer, metrics []FloatMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{} %f\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, m.Val)
+		fmt.Fprintf(w, "# TYPE %s%s %s\n%s%s{%s} %f\n", prefix, m.Name, getMetricType(m.Tgs), prefix, m.Name, getPercentile(m.Tgs), m.Val)
 	}
 }
 
