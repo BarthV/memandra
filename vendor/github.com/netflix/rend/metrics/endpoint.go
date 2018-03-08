@@ -229,6 +229,8 @@ func getPercentile(tags Tags) string {
 			return fmt.Sprintf("percentile=\"%s\",", string(v))
 		case "percentile":
 			return fmt.Sprintf("percentile=\"%s\",", string(v))
+		case "size":
+			return fmt.Sprintf("size=\"%s\",", string(v))
 		}
 	}
 	return ""
