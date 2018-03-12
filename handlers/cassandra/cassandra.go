@@ -54,7 +54,6 @@ func bufferSizeCheckLoop() {
 }
 
 func flushBuffer() {
-	metrics.IncCounter(MetricCmdSetL2Batch)
 	/* if singleton.isFlushing {
 		return
 	}
@@ -66,6 +65,8 @@ func flushBuffer() {
 	chanLen := len(singleton.setbuffer)
 
 	if chanLen > 0 {
+		metrics.IncCounter(MetricCmdSetL2Batch)
+
 		// fmt.Println(chanLen)
 		if chanLen >= viper.GetInt("CassandraBatchMaxItemSize") {
 			chanLen = viper.GetInt("CassandraBatchMaxItemSize")
