@@ -7,6 +7,8 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/timer"
 	"github.com/spf13/viper"
 )
 
@@ -24,6 +26,14 @@ type CassandraSet struct {
 	Flags   uint32
 	Exptime uint32
 }
+
+var (
+	// L2Cassandra Batching metrics
+	MetricCmdSetL2Batch        = metrics.AddCounter("cmd_set_l2_batch", nil)
+	MetricCmdSetL2BatchErrors  = metrics.AddCounter("cmd_set_l2_batch_errors", nil)
+	MetricCmdSetL2BatchSuccess = metrics.AddCounter("cmd_set_l2_batch_success", nil)
+	HistSetL2Batch             = metrics.AddHistogram("set_l2_batch", false, nil)
+)
 
 var singleton *Handler
 
@@ -44,6 +54,7 @@ func bufferSizeCheckLoop() {
 }
 
 func flushBuffer() {
+	metrics.IncCounter(MetricCmdSetL2Batch)
 	/* if singleton.isFlushing {
 		return
 	}
@@ -73,8 +84,16 @@ func flushBuffer() {
 				item.Exptime,
 			)
 		}
+
 		// exec CQL batch
-		singleton.session.ExecuteBatch(b)
+		start := timer.Now()
+		err := singleton.session.ExecuteBatch(b)
+		if err != nil {
+			metrics.IncCounter(MetricCmdSetL2BatchErrors)
+		} else {
+			metrics.IncCounter(MetricCmdSetL2BatchSuccess)
+			metrics.ObserveHist(HistSetL2Batch, timer.Since(start))
+		}
 	}
 	singleton.buffertimer.Reset(200 * time.Millisecond)
 }
