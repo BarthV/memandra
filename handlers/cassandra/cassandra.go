@@ -35,6 +35,7 @@ var (
 	MetricCmdSetL2BatchErrors  = metrics.AddCounter("cmd_set_l2_batch_errors", nil)
 	MetricCmdSetL2BatchSuccess = metrics.AddCounter("cmd_set_l2_batch_success", nil)
 	HistSetL2Batch             = metrics.AddHistogram("set_l2_batch", false, nil)
+	HistSetL2BufferWait        = metrics.AddHistogram("set_l2_buffer_timewait", false, nil)
 )
 
 var singleton *Handler
@@ -142,12 +143,14 @@ func (h *Handler) Close() error {
 }
 
 func (h *Handler) Set(cmd common.SetRequest) error {
+	start := timer.Now()
 	h.setbuffer <- CassandraSet{
 		Key:     cmd.Key,
 		Data:    cmd.Data,
 		Flags:   cmd.Flags,
 		Exptime: cmd.Exptime,
 	}
+	metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
 	return nil
 }
 
