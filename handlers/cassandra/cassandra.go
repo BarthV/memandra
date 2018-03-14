@@ -2,6 +2,7 @@ package cassandra
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -29,6 +30,7 @@ type CassandraSet struct {
 
 var (
 	// L2Cassandra Batching metrics
+	MetricSetBufferSize        = metrics.AddIntGauge("cmd_set_l2_batch_buffer_size", nil)
 	MetricCmdSetL2Batch        = metrics.AddCounter("cmd_set_l2_batch", nil)
 	MetricCmdSetL2BatchErrors  = metrics.AddCounter("cmd_set_l2_batch_errors", nil)
 	MetricCmdSetL2BatchSuccess = metrics.AddCounter("cmd_set_l2_batch_success", nil)
@@ -63,6 +65,7 @@ func flushBuffer() {
 	defer unsetFlushingState()
 	defer singleton.flushLock.Unlock() */
 	chanLen := len(singleton.setbuffer)
+	metrics.SetIntGauge(MetricSetBufferSize, uint64(chanLen))
 
 	if chanLen > 0 {
 		metrics.IncCounter(MetricCmdSetL2Batch)
@@ -91,11 +94,14 @@ func flushBuffer() {
 		err := singleton.session.ExecuteBatch(b)
 		if err != nil {
 			metrics.IncCounter(MetricCmdSetL2BatchErrors)
+			log.Println("[ERROR] Batched Cassandra SET returned an error. ", err)
 		} else {
 			metrics.IncCounter(MetricCmdSetL2BatchSuccess)
 			metrics.ObserveHist(HistSetL2Batch, timer.Since(start))
 		}
 	}
+
+	// TODO: we need to protect this timer reset, and make it thread safe !!
 	singleton.buffertimer.Reset(200 * time.Millisecond)
 }
 
