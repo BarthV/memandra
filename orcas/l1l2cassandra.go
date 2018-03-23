@@ -141,7 +141,7 @@ func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 				// Replacing a key that doesn't exist is a normal error
 				metrics.IncCounter(orcas.MetricCmdReplaceNotStoredL2)
 				metrics.IncCounter(orcas.MetricCmdReplaceNotStored)
-				return err
+				return common.ErrItemNotStored // memcached return a NOT_STORED msg in this case
 			}
 			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
 			// L1 Not Stored/Error + L2 error ==> Global Error
@@ -149,6 +149,7 @@ func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 			return err
 		}
 		// Slow path successfully completed
+		metrics.IncCounter(orcas.MetricCmdReplaceStoredL2)
 		metrics.IncCounter(orcas.MetricCmdReplaceStored)
 		return l.res.Replace(req.Opaque, req.Quiet)
 	} else {
