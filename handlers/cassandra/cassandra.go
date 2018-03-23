@@ -26,7 +26,6 @@ type CassandraSet struct {
 	Data    []byte
 	Flags   uint32
 	Exptime uint32
-	Replace bool
 }
 
 var (
@@ -79,29 +78,16 @@ func flushBuffer() {
 		b := singleton.session.NewBatch(gocql.UnloggedBatch)
 		for i := 1; i <= chanLen; i++ {
 			item := (<-singleton.setbuffer)
-			if item.Replace {
-				b.Query(
-					fmt.Sprintf(
-						"UPDATE %s.%s USING TTL ? SET valuecol=? WHERE keycol=? IF EXISTS",
-						viper.GetString("CassandraKeyspace"),
-						viper.GetString("CassandraBucket"),
-					),
-					item.Exptime,
-					item.Data,
-					item.Key,
-				)
-			} else {
-				b.Query(
-					fmt.Sprintf(
-						"INSERT INTO %s.%s (keycol,valuecol) VALUES (?, ?) USING TTL ?",
-						viper.GetString("CassandraKeyspace"),
-						viper.GetString("CassandraBucket"),
-					),
-					item.Key,
-					item.Data,
-					item.Exptime,
-				)
-			}
+			b.Query(
+				fmt.Sprintf(
+					"INSERT INTO %s.%s (keycol,valuecol) VALUES (?, ?) USING TTL ?",
+					viper.GetString("CassandraKeyspace"),
+					viper.GetString("CassandraBucket"),
+				),
+				item.Key,
+				item.Data,
+				item.Exptime,
+			)
 		}
 
 		// exec CQL batch
@@ -163,9 +149,9 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		Data:    cmd.Data,
 		Flags:   cmd.Flags,
 		Exptime: cmd.Exptime,
-		Replace: false,
 	}
 	metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
+	// TODO : add a set timeout that return "not_stored" in case of buffer error ?
 	return nil
 }
 
@@ -175,16 +161,38 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 }
 
 func (h *Handler) Replace(cmd common.SetRequest) error {
-	start := timer.Now()
-	h.setbuffer <- CassandraSet{
-		Key:     cmd.Key,
-		Data:    cmd.Data,
-		Flags:   cmd.Flags,
-		Exptime: cmd.Exptime,
-		Replace: true,
+	key_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
+		values := make([]interface{}, 1)
+		values[0] = cmd.Key
+		return values, nil
 	}
-	metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
-	return nil
+	var wtime uint
+	if err := h.session.Bind(
+		/* TODO: better use "UPDATE ... IF EXISTS" pattern because it make use of
+		"Lightweight transactions" and it's more consistent. */
+		fmt.Sprintf(
+			"SELECT writetime(valuecol) FROM %s.%s WHERE keycol=? LIMIT 1",
+			viper.GetString("CassandraKeyspace"),
+			viper.GetString("CassandraBucket"),
+		),
+		key_qi,
+	).Scan(&wtime); err == nil {
+		start := timer.Now()
+		h.setbuffer <- CassandraSet{
+			Key:     cmd.Key,
+			Data:    cmd.Data,
+			Flags:   cmd.Flags,
+			Exptime: cmd.Exptime,
+		}
+		metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
+		return nil
+	} else {
+		if err.Error() == "not found" {
+			return common.ErrItemNotStored
+		} else {
+			return common.ErrInternal
+		}
+	}
 }
 
 func (h *Handler) Append(cmd common.SetRequest) error {
