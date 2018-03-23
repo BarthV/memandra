@@ -188,7 +188,7 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 		return nil
 	} else {
 		if err.Error() == "not found" {
-			return common.ErrItemNotStored
+			return common.ErrKeyNotFound
 		} else {
 			return common.ErrInternal
 		}

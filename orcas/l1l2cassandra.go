@@ -115,7 +115,8 @@ func (l *L1L2CassandraOrca) Add(req common.SetRequest) error {
 func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 	//log.Println("replace", string(req.Key))
 
-	// GO FAST PATH : if key exists in L1 just do a simple set in L2
+	// FAST PATH : if key exists in L1 just do a simple set in L2
+	// SLOW PATH : L1 is missing, we need to ask L2 if the key exists (it's slower)
 	metrics.IncCounter(orcas.MetricCmdReplaceL1)
 	start := timer.Now()
 	err := l.l1.Replace(req)
@@ -136,7 +137,8 @@ func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 		err := l.l2.Replace(req)
 		metrics.ObserveHist(orcas.HistReplaceL2, timer.Since(start))
 		if err != nil {
-			if err == common.ErrItemNotStored {
+			if err == common.ErrKeyNotFound {
+				// Replacing a key that doesn't exist is a normal error
 				metrics.IncCounter(orcas.MetricCmdReplaceNotStoredL2)
 				metrics.IncCounter(orcas.MetricCmdReplaceNotStored)
 				return err
@@ -150,18 +152,18 @@ func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 		metrics.IncCounter(orcas.MetricCmdReplaceStored)
 		return l.res.Replace(req.Opaque, req.Quiet)
 	} else {
-		// L1 has the key we can assume L2 has it too. We can add a set in L2 buffer
+		// L1 has the key, we can assume L2 has it too. We can add a set in L2 buffer
 		// So .. This is the FAST PATH !!
 		metrics.IncCounter(orcas.MetricCmdReplaceStoredL1)
 
-		// Set to L2
+		// Make a simple set to L2
 		metrics.IncCounter(orcas.MetricCmdSetL2)
 		start := timer.Now()
 		err := l.l2.Set(req)
 		metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
 
 		if err != nil {
-			log.Println("[ERROR] Replace success in L1, but simple SET in L2 failed ! (FAST PATH)")
+			log.Println("[ERROR] Replace success in L1, but simple SET in L2 failed ! (Replace FAST PATH)")
 			metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
 			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
 			metrics.IncCounter(orcas.MetricCmdReplaceErrors)
