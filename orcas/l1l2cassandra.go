@@ -165,6 +165,7 @@ func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 
 		if err != nil {
 			log.Println("[ERROR] Replace success in L1, but simple SET in L2 failed ! (Replace FAST PATH)")
+			metrics.IncCounter(MetricCmdSetL1NotInL2)
 			metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
 			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
 			metrics.IncCounter(orcas.MetricCmdReplaceErrors)
