@@ -115,77 +115,64 @@ func (l *L1L2CassandraOrca) Add(req common.SetRequest) error {
 func (l *L1L2CassandraOrca) Replace(req common.SetRequest) error {
 	//log.Println("replace", string(req.Key))
 
-	// Replace in L2 first, since it has the larger state
-	metrics.IncCounter(orcas.MetricCmdReplaceL2)
-	start := timer.Now()
-
-	err := l.l2.Replace(req)
-
-	metrics.ObserveHist(orcas.HistReplaceL2, timer.Since(start))
-
-	if err != nil {
-		// A key not existing is not an error per se, it's a part of the
-		// functionality of the replace command to respond with a "not stored"
-		// in the form of an ErrKeyNotFound. Hence no error metrics.
-		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(orcas.MetricCmdReplaceNotStoredL2)
-			metrics.IncCounter(orcas.MetricCmdReplaceNotStored)
-			return err
-		}
-
-		// otherwise we have a real error on our hands
-		metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
-		metrics.IncCounter(orcas.MetricCmdReplaceErrors)
-		return err
-	}
-
-	metrics.IncCounter(orcas.MetricCmdReplaceStoredL2)
-
-	// Now on to L1. For a replace, the L2 succeeding means that the key is
-	// successfully replaced in L2, but in the middle here "anything can happen"
-	// so we have to think about concurrent operations. In a concurrent set
-	// situation, both L2 and L1 might have the same value from the set. In this
-	// case an add will fail and cause correct behavior. In a concurrent delete
-	// that hits in L2 (for the newly replaced data) and hits in L1 (for the
-	// data that was about to be replaced) then an add will cause a consistency
-	// problem by setting a key that shouldn't exist in L1 because it's not in
-	// L2. set and replace have the opposite problem, since they might overwrite
-	// a legitimate set that happened concurrently in the middle of the two
-	// operations. There is no one operation that solves these, so:
-	//
-	// The use of replace here explicitly assumes there is no concurrent set for
-	// the same key.
-	//
-	// The other risk here is a concurrent replace for the same key, which will
-	// possibly interleave to produce inconsistency in L2 and L1.
+	// GO FAST PATH : if key exists in L1 just do a simple set in L2
 	metrics.IncCounter(orcas.MetricCmdReplaceL1)
-	start = timer.Now()
-
-	err = l.l1.Replace(req)
-
+	start := timer.Now()
+	err := l.l1.Replace(req)
 	metrics.ObserveHist(orcas.HistReplaceL1, timer.Since(start))
 
 	if err != nil {
-		// In this case, the replace worked fine, and we don't worry about it not
-		// being replaced in L1 because it did not exist. In this case, L2 has
-		// the data and L1 is empty. This is still correct, and the next get
-		// would place the data back into L1. Hence, we do not return the error.
+		// Key does not exists in L1 ... GO SLOW PATH !
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(orcas.MetricCmdReplaceNotStoredL1)
-			metrics.IncCounter(orcas.MetricCmdReplaceNotStored)
-			return l.res.Replace(req.Opaque, req.Quiet)
+		} else {
+			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL1)
+			metrics.IncCounter(orcas.MetricCmdReplaceErrors)
 		}
 
-		// otherwise we have a real error on our hands
-		metrics.IncCounter(orcas.MetricCmdReplaceErrorsL1)
-		metrics.IncCounter(orcas.MetricCmdReplaceErrors)
-		return err
+		// Replace in L2 (SLOW PATH)
+		metrics.IncCounter(orcas.MetricCmdReplaceL2)
+		start := timer.Now()
+		err := l.l2.Replace(req)
+		metrics.ObserveHist(orcas.HistReplaceL2, timer.Since(start))
+		if err != nil {
+			if err == common.ErrItemNotStored {
+				metrics.IncCounter(orcas.MetricCmdReplaceNotStoredL2)
+				metrics.IncCounter(orcas.MetricCmdReplaceNotStored)
+				return err
+			}
+			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
+			// L1 Not Stored/Error + L2 error ==> Global Error
+			metrics.IncCounter(orcas.MetricCmdReplaceErrors)
+			return err
+		}
+		// Slow path successfully completed
+		metrics.IncCounter(orcas.MetricCmdReplaceStored)
+		return l.res.Replace(req.Opaque, req.Quiet)
+	} else {
+		// L1 has the key we can assume L2 has it too. We can add a set in L2 buffer
+		// So .. This is the FAST PATH !!
+		metrics.IncCounter(orcas.MetricCmdReplaceStoredL1)
+
+		// Set to L2
+		metrics.IncCounter(orcas.MetricCmdSetL2)
+		start := timer.Now()
+		err := l.l2.Set(req)
+		metrics.ObserveHist(orcas.HistSetL2, timer.Since(start))
+
+		if err != nil {
+			log.Println("[ERROR] Replace success in L1, but simple SET in L2 failed ! (FAST PATH)")
+			metrics.IncCounter(orcas.MetricCmdSetErrorsL2)
+			metrics.IncCounter(orcas.MetricCmdReplaceErrorsL2)
+			metrics.IncCounter(orcas.MetricCmdReplaceErrors)
+			return err
+		}
+		// Fast path completed successfully
+		metrics.IncCounter(orcas.MetricCmdSetSuccessL2)
+		metrics.IncCounter(orcas.MetricCmdReplaceStoredL2)
+		metrics.IncCounter(orcas.MetricCmdReplaceStored)
+		return l.res.Replace(req.Opaque, req.Quiet)
 	}
-
-	metrics.IncCounter(orcas.MetricCmdReplaceStoredL1)
-	metrics.IncCounter(orcas.MetricCmdReplaceStored)
-
-	return l.res.Replace(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2CassandraOrca) Append(req common.SetRequest) error {
