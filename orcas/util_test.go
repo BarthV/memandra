@@ -28,14 +28,13 @@ type testHandler struct {
 
 func (h *testHandler) verifyEmpty(t *testing.T) {
 	if len(h.errors) > 0 {
-		t.Error(h.errors)
-		t.Fatalf("ERRORS Expected errors to be empty. Left over: %#v", h.errors)
+		t.Fatalf("Expected errors to be empty. Left over: %#v", h.errors)
 	}
 	if len(h.responses) > 0 {
-		t.Fatalf("RESPONSES Expected errors to be empty. Left over: %#v", h.responses)
+		t.Fatalf("Expected errors to be empty. Left over: %#v", h.responses)
 	}
 	if len(h.eresponses) > 0 {
-		t.Fatalf("ERESPONSE Expected errors to be empty. Left over: %#v", h.eresponses)
+		t.Fatalf("Expected errors to be empty. Left over: %#v", h.eresponses)
 	}
 }
 

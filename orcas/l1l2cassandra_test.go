@@ -72,5 +72,36 @@ func TestL1L2Orca(t *testing.T) {
 				h2.verifyEmpty(t)
 			})
 		})
+		t.Run("L2Miss", func(t *testing.T) {
+			h1 := &testHandler{
+				errors: []error{common.ErrKeyNotFound},
+			}
+			h2 := &testHandler{}
+			output := &bytes.Buffer{}
+
+			l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+			err := l1l2.Get(common.GetRequest{
+				Keys:    [][]byte{[]byte("key")},
+				Opaques: []uint32{0},
+				Quiet:   []bool{false},
+				NoopEnd: false,
+			})
+			if err != common.ErrKeyNotFound {
+				t.Fatalf("Error should be %s, got %v", common.ErrKeyNotFound, err)
+			}
+
+			out := string(output.Bytes())
+
+			t.Logf(out)
+			gold := ""
+
+			if out != gold {
+				t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+			}
+
+			h1.verifyEmpty(t)
+			h2.verifyEmpty(t)
+		})
 	})
 }
