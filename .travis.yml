@@ -17,7 +17,7 @@ install:
   - # skip
 
 script:
-  - go test -v -race -coverprofile=coverage.txt -covermode=atomic $(go list | grep -v vendor)
+  - ./go.test.sh
   - if [ "${RELEASE_VERSION}"  = "true" ]; then gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Rev=`git rev-parse --short HEAD`" -verbose ./...; fi
 
 after_success:
