@@ -376,6 +376,8 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 					start2 := timer.Now()
 
 					// Using a Add instead a Set prevent overwriting concurrent Set in L1
+					// Add is locking keys in memcached, this creates conccurrency errors!
+					// So we're fallbacking to a simple SET as a workaround.
 					err = l.l1.Set(setreq)
 
 					metrics.ObserveHist(orcas.HistSetL1, timer.Since(start2))

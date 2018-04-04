@@ -11,13 +11,17 @@ matrix:
 # simple cross compile tool for go
 before_install:
   - go get github.com/mitchellh/gox
+  # - go get -t -v ./...
 
 install:
   - # skip
 
 script:
-  - go test -v -race $(go list | grep -v vendor)
+  - go test -v -race -coverprofile=coverage.txt -covermode=atomic $(go list | grep -v vendor)
   - if [ "${RELEASE_VERSION}"  = "true" ]; then gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Rev=`git rev-parse --short HEAD`" -verbose ./...; fi
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
 
 deploy:
   provider: releases
