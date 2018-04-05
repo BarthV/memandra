@@ -341,36 +341,66 @@ func TestL1L2Orca(t *testing.T) {
 
 		// DELETE -> L2 Error
 		t.Run("L2DeleteFail", func(t *testing.T) {
-			t.Run("L1DeleteSuccess", func(t *testing.T) {
-				h1 := &testHandler{}
-				h2 := &testHandler{
-					errors: []error{common.ErrInternal},
-				}
-				output := &bytes.Buffer{}
+			h1 := &testHandler{}
+			h2 := &testHandler{
+				errors: []error{common.ErrInternal},
+			}
+			output := &bytes.Buffer{}
 
-				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+			l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
 
-				err := l1l2.Delete(common.DeleteRequest{
-					Key:    []byte("key"),
-					Opaque: 0,
-					Quiet:  false,
-				})
-				if err != common.ErrInternal {
-					t.Fatalf("Error should be %s, got %v", common.ErrInternal, err)
-				}
-
-				out := string(output.Bytes())
-
-				t.Logf(out)
-				gold := ""
-
-				if out != gold {
-					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
-				}
-
-				h1.verifyEmpty(t)
-				h2.verifyEmpty(t)
+			err := l1l2.Delete(common.DeleteRequest{
+				Key:    []byte("key"),
+				Opaque: 0,
+				Quiet:  false,
 			})
+			if err != common.ErrInternal {
+				t.Fatalf("Error should be %s, got %v", common.ErrInternal, err)
+			}
+
+			out := string(output.Bytes())
+
+			t.Logf(out)
+			gold := ""
+
+			if out != gold {
+				t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+			}
+
+			h1.verifyEmpty(t)
+			h2.verifyEmpty(t)
+		})
+
+		// DELETE -> L2 Miss
+		t.Run("L2DeleteMiss", func(t *testing.T) {
+			h1 := &testHandler{}
+			h2 := &testHandler{
+				errors: []error{common.ErrKeyNotFound},
+			}
+			output := &bytes.Buffer{}
+
+			l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+			err := l1l2.Delete(common.DeleteRequest{
+				Key:    []byte("key"),
+				Opaque: 0,
+				Quiet:  false,
+			})
+			if err != common.ErrKeyNotFound {
+				t.Fatalf("Error should be %s, got %v", common.ErrKeyNotFound, err)
+			}
+
+			out := string(output.Bytes())
+
+			t.Logf(out)
+			gold := ""
+
+			if out != gold {
+				t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+			}
+
+			h1.verifyEmpty(t)
+			h2.verifyEmpty(t)
 		})
 	})
 
@@ -644,6 +674,50 @@ func TestL1L2Orca(t *testing.T) {
 		l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
 
 		err := l1l2.Add(common.SetRequest{})
+		if err != common.ErrUnknownCmd {
+			t.Fatalf("Error should be %s, got %v", common.ErrUnknownCmd, err)
+		}
+
+		out := string(output.Bytes())
+		gold := ""
+
+		if out != gold {
+			t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+		}
+
+		h1.verifyEmpty(t)
+		h2.verifyEmpty(t)
+	})
+
+	t.Run("Append", func(t *testing.T) {
+		h1 := &testHandler{}
+		h2 := &testHandler{}
+		output := &bytes.Buffer{}
+		l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+		err := l1l2.Append(common.SetRequest{})
+		if err != common.ErrUnknownCmd {
+			t.Fatalf("Error should be %s, got %v", common.ErrUnknownCmd, err)
+		}
+
+		out := string(output.Bytes())
+		gold := ""
+
+		if out != gold {
+			t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+		}
+
+		h1.verifyEmpty(t)
+		h2.verifyEmpty(t)
+	})
+
+	t.Run("Prepend", func(t *testing.T) {
+		h1 := &testHandler{}
+		h2 := &testHandler{}
+		output := &bytes.Buffer{}
+		l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+		err := l1l2.Prepend(common.SetRequest{})
 		if err != common.ErrUnknownCmd {
 			t.Fatalf("Error should be %s, got %v", common.ErrUnknownCmd, err)
 		}
