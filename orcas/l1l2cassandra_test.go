@@ -376,10 +376,189 @@ func TestL1L2Orca(t *testing.T) {
 
 	t.Run("Replace", func(t *testing.T) {
 		// REPLACE -> L1 OK -> L2 OK
-		t.Run("L1DReplaceSuccess", func(t *testing.T) {
-			t.Run("L2DReplaceSuccess", func(t *testing.T) {
+		t.Run("L1ReplaceSuccess", func(t *testing.T) {
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
 				h1 := &testHandler{
 					errors: []error{nil},
+				}
+				h2 := &testHandler{
+					errors: []error{nil},
+				}
+				output := &bytes.Buffer{}
+
+				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+				err := l1l2.Replace(common.SetRequest{
+					Key:    []byte("key"),
+					Data:   []byte("value"),
+					Opaque: 0,
+					Quiet:  false,
+				})
+				if err != nil {
+					t.Fatalf("Error should be nil, got %v", err)
+				}
+
+				out := string(output.Bytes())
+
+				t.Logf(out)
+				gold := "STORED\r\n"
+
+				if out != gold {
+					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+				}
+
+				h1.verifyEmpty(t)
+				h2.verifyEmpty(t)
+			})
+
+			// REPLACE -> L1 OK -> L2 Error
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
+				h1 := &testHandler{
+					errors: []error{nil},
+				}
+				h2 := &testHandler{
+					errors: []error{common.ErrInternal},
+				}
+				output := &bytes.Buffer{}
+
+				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+				err := l1l2.Replace(common.SetRequest{
+					Key:    []byte("key"),
+					Data:   []byte("value"),
+					Opaque: 0,
+					Quiet:  false,
+				})
+				if err != common.ErrInternal {
+					t.Fatalf("Error should be %s, got %v", common.ErrInternal, err)
+				}
+
+				out := string(output.Bytes())
+
+				t.Logf(out)
+				gold := ""
+
+				if out != gold {
+					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+				}
+
+				h1.verifyEmpty(t)
+				h2.verifyEmpty(t)
+			})
+		})
+
+		// REPLACE -> L1 MISS -> L2 OK
+		t.Run("L1ReplaceNotFound", func(t *testing.T) {
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
+				h1 := &testHandler{
+					errors: []error{common.ErrKeyNotFound},
+				}
+				h2 := &testHandler{
+					errors: []error{nil},
+				}
+				output := &bytes.Buffer{}
+
+				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+				err := l1l2.Replace(common.SetRequest{
+					Key:    []byte("key"),
+					Data:   []byte("value"),
+					Opaque: 0,
+					Quiet:  false,
+				})
+				if err != nil {
+					t.Fatalf("Error should be nil, got %v", err)
+				}
+
+				out := string(output.Bytes())
+
+				t.Logf(out)
+				gold := "STORED\r\n"
+
+				if out != gold {
+					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+				}
+
+				h1.verifyEmpty(t)
+				h2.verifyEmpty(t)
+			})
+
+			// REPLACE -> L1 MISS -> L2 MISS
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
+				h1 := &testHandler{
+					errors: []error{common.ErrKeyNotFound},
+				}
+				h2 := &testHandler{
+					errors: []error{common.ErrKeyNotFound},
+				}
+				output := &bytes.Buffer{}
+
+				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+				err := l1l2.Replace(common.SetRequest{
+					Key:    []byte("key"),
+					Data:   []byte("value"),
+					Opaque: 0,
+					Quiet:  false,
+				})
+				if err != common.ErrItemNotStored {
+					t.Fatalf("Error should be %s, got %v", common.ErrItemNotStored, err)
+				}
+
+				out := string(output.Bytes())
+
+				t.Logf(out)
+				gold := ""
+
+				if out != gold {
+					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+				}
+
+				h1.verifyEmpty(t)
+				h2.verifyEmpty(t)
+			})
+
+			// REPLACE -> L1 MISS -> L2 ERROR
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
+				h1 := &testHandler{
+					errors: []error{common.ErrKeyNotFound},
+				}
+				h2 := &testHandler{
+					errors: []error{common.ErrItemNotStored},
+				}
+				output := &bytes.Buffer{}
+
+				l1l2 := orcas.L1L2Cassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+				err := l1l2.Replace(common.SetRequest{
+					Key:    []byte("key"),
+					Data:   []byte("value"),
+					Opaque: 0,
+					Quiet:  false,
+				})
+				if err != common.ErrItemNotStored {
+					t.Fatalf("Error should be %s, got %v", common.ErrItemNotStored, err)
+				}
+
+				out := string(output.Bytes())
+
+				t.Logf(out)
+				gold := ""
+
+				if out != gold {
+					t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+				}
+
+				h1.verifyEmpty(t)
+				h2.verifyEmpty(t)
+			})
+		})
+
+		// REPLACE -> L1 Error -> L2 OK
+		t.Run("L1ReplaceFailure", func(t *testing.T) {
+			t.Run("L2ReplaceSuccess", func(t *testing.T) {
+				h1 := &testHandler{
+					errors: []error{common.ErrItemNotStored},
 				}
 				h2 := &testHandler{
 					errors: []error{nil},
