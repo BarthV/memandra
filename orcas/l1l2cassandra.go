@@ -301,6 +301,17 @@ func (l *L1L2CassandraOrca) Get(req common.GetRequest) error {
 					l2keys = append(l2keys, res.Key)
 					l2opaques = append(l2opaques, res.Opaque)
 					l2quiets = append(l2quiets, res.Quiet)
+
+					/* getres := common.GetResponse{
+						Key:    res.Key,
+						Flags:  res.Flags,
+						Data:   res.Data,
+						Miss:   res.Miss,
+						Opaque: res.Opaque,
+						Quiet:  res.Quiet,
+					}
+
+					l.res.Get(getres) */
 				} else {
 					metrics.IncCounter(orcas.MetricCmdGetHits)
 					metrics.IncCounter(orcas.MetricCmdGetHitsL1)

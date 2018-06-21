@@ -142,13 +142,23 @@ func (h *Handler) Close() error {
 	return nil
 }
 
+func ComputeExpTime(Exptime uint32) uint32 {
+	// Maximum allowed relative TTL in memcached protocol
+	max_ttl := uint32(60 * 60 * 24 * 30) // number of seconds in 30 days
+	if Exptime > max_ttl {
+		return Exptime - uint32(time.Now().Unix())
+	}
+	return Exptime
+}
+
 func (h *Handler) Set(cmd common.SetRequest) error {
+	real_exptime := ComputeExpTime(cmd.Exptime)
 	start := timer.Now()
 	h.setbuffer <- CassandraSet{
 		Key:     cmd.Key,
 		Data:    cmd.Data,
 		Flags:   cmd.Flags,
-		Exptime: cmd.Exptime,
+		Exptime: real_exptime,
 	}
 	metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
 	// TODO : add a set timeout that return "not_stored" in case of buffer error ?
@@ -177,12 +187,13 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 		),
 		key_qi,
 	).Scan(&wtime); err == nil {
+		real_exptime := ComputeExpTime(cmd.Exptime)
 		start := timer.Now()
 		h.setbuffer <- CassandraSet{
 			Key:     cmd.Key,
 			Data:    cmd.Data,
 			Flags:   cmd.Flags,
-			Exptime: cmd.Exptime,
+			Exptime: real_exptime,
 		}
 		metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
 		return nil
