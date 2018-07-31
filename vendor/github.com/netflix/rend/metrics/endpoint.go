@@ -147,7 +147,8 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	//////////////////////////
 	// Bucketized histograms
 	//////////////////////////
-	im = append(im, getAllBucketHistograms()...)
+	// disabled for our needs
+	// im = append(im, getAllBucketHistograms()...)
 
 	//////////////////////////
 	// Counters

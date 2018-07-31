@@ -10,7 +10,6 @@ import (
 	"github.com/BarthV/memandra/handlers/cassandra"
 	"github.com/BarthV/memandra/orcas"
 	"github.com/netflix/rend/handlers"
-	"github.com/netflix/rend/handlers/memcached"
 	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/protocol/binprot"
 	"github.com/netflix/rend/protocol/textprot"
@@ -31,7 +30,6 @@ func init_default_config() {
 	viper.SetDefault("CassandraBatchMaxItemSize", 5000)
 	viper.SetDefault("CassandraTimeoutMs", 1000*time.Millisecond)
 	viper.SetDefault("CassandraConnectTimeoutMs", 1000*time.Millisecond)
-	viper.SetDefault("MemcachedSocket", "/var/run/memcached/memcached.sock")
 }
 
 func load_config_from_env() {
@@ -47,7 +45,6 @@ func load_config_from_env() {
 	viper.BindEnv("CassandraBatchMaxItemSize", "BATCHMAXSIZE")
 	viper.BindEnv("CassandraTimeoutMs", "CASSANDRATIMEOUT")
 	viper.BindEnv("CassandraConnectTimeoutMs", "CASSANDRACONNTIMEOUT")
-	viper.BindEnv("MemcachedSocket", "MEMCACHEDSOCKETPATH")
 }
 
 func main() {
@@ -68,17 +65,11 @@ func main() {
 	var h2 handlers.HandlerConst
 
 	// L1Only MODE
-	// h1 = cassandra.New
-	// h2 = handlers.NilHandler
-	//
-	// L1L2 MODE
-	h1 = memcached.Regular(viper.GetString("MemcachedSocket"))
-	h2 = cassandra.New
+	h1 = cassandra.New
+	h2 = handlers.NilHandler
 
 	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
 
-	// server.ListenAndServe(l, ps, server.Default, orcas.L1Only, h1, h2)
-	// server.ListenAndServe(l, ps, server.Default, orcas.L1L2, h1, h2)
-	server.ListenAndServe(l, ps, server.Default, orcas.L1L2Cassandra, h1, h2)
+	server.ListenAndServe(l, ps, server.Default, orcas.L1OnlyCassandra, h1, h2)
 }

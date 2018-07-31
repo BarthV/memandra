@@ -29,13 +29,13 @@ type CassandraSet struct {
 }
 
 var (
-	// L2Cassandra Batching metrics
-	MetricSetBufferSize        = metrics.AddIntGauge("cmd_set_l2_batch_buffer_size", nil)
-	MetricCmdSetL2Batch        = metrics.AddCounter("cmd_set_l2_batch", nil)
-	MetricCmdSetL2BatchErrors  = metrics.AddCounter("cmd_set_l2_batch_errors", nil)
-	MetricCmdSetL2BatchSuccess = metrics.AddCounter("cmd_set_l2_batch_success", nil)
-	HistSetL2Batch             = metrics.AddHistogram("set_l2_batch", false, nil)
-	HistSetL2BufferWait        = metrics.AddHistogram("set_l2_buffer_timewait", false, nil)
+	// Cassandra Batching metrics
+	MetricSetBufferSize      = metrics.AddIntGauge("cmd_set_batch_buffer_size", nil)
+	MetricCmdSetBatch        = metrics.AddCounter("cmd_set_batch", nil)
+	MetricCmdSetBatchErrors  = metrics.AddCounter("cmd_set_batch_errors", nil)
+	MetricCmdSetBatchSuccess = metrics.AddCounter("cmd_set_batch_success", nil)
+	HistSetBatch             = metrics.AddHistogram("set_batch", false, nil)
+	HistSetBufferWait        = metrics.AddHistogram("set_buffer_timewait", false, nil)
 )
 
 var singleton *Handler
@@ -69,7 +69,7 @@ func flushBuffer() {
 	metrics.SetIntGauge(MetricSetBufferSize, uint64(chanLen))
 
 	if chanLen > 0 {
-		metrics.IncCounter(MetricCmdSetL2Batch)
+		metrics.IncCounter(MetricCmdSetBatch)
 
 		// fmt.Println(chanLen)
 		if chanLen >= viper.GetInt("CassandraBatchMaxItemSize") {
@@ -94,11 +94,11 @@ func flushBuffer() {
 		start := timer.Now()
 		err := singleton.session.ExecuteBatch(b)
 		if err != nil {
-			metrics.IncCounter(MetricCmdSetL2BatchErrors)
+			metrics.IncCounter(MetricCmdSetBatchErrors)
 			log.Println("[ERROR] Batched Cassandra SET returned an error. ", err)
 		} else {
-			metrics.IncCounter(MetricCmdSetL2BatchSuccess)
-			metrics.ObserveHist(HistSetL2Batch, timer.Since(start))
+			metrics.IncCounter(MetricCmdSetBatchSuccess)
+			metrics.ObserveHist(HistSetBatch, timer.Since(start))
 		}
 	}
 
@@ -160,7 +160,7 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		Flags:   cmd.Flags,
 		Exptime: real_exptime,
 	}
-	metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
+	metrics.ObserveHist(HistSetBufferWait, timer.Since(start))
 	// TODO : add a set timeout that return "not_stored" in case of buffer error ?
 	return nil
 }
@@ -195,7 +195,7 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 			Flags:   cmd.Flags,
 			Exptime: real_exptime,
 		}
-		metrics.ObserveHist(HistSetL2BufferWait, timer.Since(start))
+		metrics.ObserveHist(HistSetBufferWait, timer.Since(start))
 		return nil
 	} else {
 		if err.Error() == "not found" {
