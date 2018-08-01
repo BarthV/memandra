@@ -106,8 +106,9 @@ func flushBuffer() {
 	singleton.buffertimer.Reset(200 * time.Millisecond)
 }
 
-func New() (handlers.Handler, error) {
-	// Only spawn a unique cassandra session per instance,
+// InitCassandraConn initialize Cassandra global connection, call it once before starting ListenAndServe()
+func InitCassandraConn() error {
+	// Only spawn a unique cassandra session,
 	// store this session in a global singleton.
 	if singleton == nil {
 		clust := gocql.NewCluster(viper.GetString("CassandraHostname"))
@@ -117,7 +118,7 @@ func New() (handlers.Handler, error) {
 		clust.ConnectTimeout = viper.GetDuration("CassandraConnectTimeoutMs")
 		sess, err := clust.CreateSession()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		singleton = &Handler{
@@ -132,7 +133,12 @@ func New() (handlers.Handler, error) {
 	}
 
 	// TODO : prepare Cassandra statements for common queries
-	// Currently using session.bind() that registers statements if they don't exists
+	// Currently using session.bind() seems to registers statements if they don't exists in C*
+
+	return nil
+}
+
+func New() (handlers.Handler, error) {
 
 	return singleton, nil
 }
@@ -161,7 +167,7 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 		Exptime: real_exptime,
 	}
 	metrics.ObserveHist(HistSetBufferWait, timer.Since(start))
-	// TODO : add a set timeout that return "not_stored" in case of buffer error ?
+	// TODO : maybe add a set timeout that return "not_stored" in case of buffer error ?
 	return nil
 }
 

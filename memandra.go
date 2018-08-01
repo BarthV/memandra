@@ -68,6 +68,9 @@ func main() {
 	h1 = cassandra.New
 	h2 = handlers.NilHandler
 
+	// Init Cassandra connection in handler
+	cassandra.InitCassandraConn()
+
 	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
 
