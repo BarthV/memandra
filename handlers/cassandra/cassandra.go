@@ -17,8 +17,6 @@ type Handler struct {
 	session     *gocql.Session
 	setbuffer   chan CassandraSet
 	buffertimer *time.Timer
-	// flushLock   *sync.Mutex
-	// isFlushing  bool
 }
 
 type CassandraSet struct {
@@ -40,10 +38,6 @@ var (
 
 var singleton *Handler
 
-func unsetFlushingState() {
-	// singleton.isFlushing = false
-}
-
 func bufferSizeCheckLoop() {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
@@ -57,14 +51,6 @@ func bufferSizeCheckLoop() {
 }
 
 func flushBuffer() {
-	/* if singleton.isFlushing {
-		return
-	}
-
-	singleton.flushLock.Lock()
-	singleton.isFlushing = true
-	defer unsetFlushingState()
-	defer singleton.flushLock.Unlock() */
 	chanLen := len(singleton.setbuffer)
 	metrics.SetIntGauge(MetricSetBufferSize, uint64(chanLen))
 
@@ -125,8 +111,6 @@ func InitCassandraConn() error {
 			session:     sess,
 			setbuffer:   make(chan CassandraSet, viper.GetInt("CassandraBatchBufferItemSize")),
 			buffertimer: time.AfterFunc(viper.GetDuration("CassandraBatchBufferMaxAgeMs"), flushBuffer),
-			// flushLock:   &sync.Mutex{},
-			// isFlushing:  false,
 		}
 
 		go bufferSizeCheckLoop()
