@@ -28,14 +28,14 @@ type CassandraSet struct {
 	Exptime uint32
 }
 
+// Cassandra Batching metrics
 var (
-	// Cassandra Batching metrics
 	MetricSetBufferSize      = metrics.AddIntGauge("cmd_set_batch_buffer_size", nil)
 	MetricCmdSetBatch        = metrics.AddCounter("cmd_set_batch", nil)
 	MetricCmdSetBatchErrors  = metrics.AddCounter("cmd_set_batch_errors", nil)
 	MetricCmdSetBatchSuccess = metrics.AddCounter("cmd_set_batch_success", nil)
 	HistSetBatch             = metrics.AddHistogram("set_batch", false, nil)
-	HistSetBufferWait        = metrics.AddHistogram("set_buffer_timewait", false, nil)
+	HistSetBufferWait        = metrics.AddHistogram("set_batch_buffer_timewait", false, nil)
 )
 
 var singleton *Handler
@@ -148,7 +148,7 @@ func (h *Handler) Close() error {
 	return nil
 }
 
-func ComputeExpTime(Exptime uint32) uint32 {
+func computeExpTime(Exptime uint32) uint32 {
 	// Maximum allowed relative TTL in memcached protocol
 	max_ttl := uint32(60 * 60 * 24 * 30) // number of seconds in 30 days
 	if Exptime > max_ttl {
@@ -158,13 +158,13 @@ func ComputeExpTime(Exptime uint32) uint32 {
 }
 
 func (h *Handler) Set(cmd common.SetRequest) error {
-	real_exptime := ComputeExpTime(cmd.Exptime)
+	realExptime := computeExpTime(cmd.Exptime)
 	start := timer.Now()
 	h.setbuffer <- CassandraSet{
 		Key:     cmd.Key,
 		Data:    cmd.Data,
 		Flags:   cmd.Flags,
-		Exptime: real_exptime,
+		Exptime: realExptime,
 	}
 	metrics.ObserveHist(HistSetBufferWait, timer.Since(start))
 	// TODO : maybe add a set timeout that return "not_stored" in case of buffer error ?
@@ -193,13 +193,13 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 		),
 		key_qi,
 	).Scan(&wtime); err == nil {
-		real_exptime := ComputeExpTime(cmd.Exptime)
+		realExptime := computeExpTime(cmd.Exptime)
 		start := timer.Now()
 		h.setbuffer <- CassandraSet{
 			Key:     cmd.Key,
 			Data:    cmd.Data,
 			Flags:   cmd.Flags,
-			Exptime: real_exptime,
+			Exptime: realExptime,
 		}
 		metrics.ObserveHist(HistSetBufferWait, timer.Since(start))
 		return nil

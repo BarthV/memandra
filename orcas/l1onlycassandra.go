@@ -202,7 +202,7 @@ func (l *L1OnlyCassandraOrca) Get(req common.GetRequest) error {
 }
 
 func (l *L1OnlyCassandraOrca) GetE(req common.GetRequest) error {
-	// The L1/L2 batch does not support getE, only L1Only does.
+	// The L1OnlyCassandra orca does not support getE, only L1L2 does (see the old l1l2 branch).
 	log.Println("[WARN] Use of unsupported GetE in L1Only Cassandra orchestrator")
 	return common.ErrUnknownCmd
 }
