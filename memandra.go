@@ -4,7 +4,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"github.com/BarthV/memandra/handlers/cassandra"
@@ -73,6 +75,23 @@ func main() {
 
 	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
+
+	// Graceful stop
+	var gracefulStop = make(chan os.Signal)
+	signal.Notify(gracefulStop, syscall.SIGTERM)
+	signal.Notify(gracefulStop, syscall.SIGKILL)
+	signal.Notify(gracefulStop, syscall.SIGINT)
+	go func() {
+		_ = <-gracefulStop
+		log.Println("[INFO] Gracefully stopping Memandra server")
+		log.Println("[INFO] Setting Cassandra handler to readonly mode")
+		cassandra.SetReadonlyMode()
+		time.Sleep(500 * time.Millisecond)
+		log.Println("[INFO] Forcing write buffer to be flushed before exiting")
+		cassandra.FlushBuffer()
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+	}()
 
 	server.ListenAndServe(l, ps, server.Default, orcas.L1OnlyCassandra, h1, h2)
 }

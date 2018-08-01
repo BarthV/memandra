@@ -14,9 +14,10 @@ import (
 )
 
 type Handler struct {
-	session     *gocql.Session
-	setbuffer   chan CassandraSet
-	buffertimer *time.Timer
+	session      *gocql.Session
+	setbuffer    chan CassandraSet
+	buffertimer  *time.Timer
+	readonlymode bool
 }
 
 type CassandraSet struct {
@@ -38,19 +39,25 @@ var (
 
 var singleton *Handler
 
+// SetReadonlyMode switch Cassandra handler to readonly mode for graceful exit
+func SetReadonlyMode() {
+	singleton.readonlymode = true
+}
+
 func bufferSizeCheckLoop() {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
 		select {
 		case <-ticker.C:
 			if len(singleton.setbuffer) >= viper.GetInt("CassandraBatchMinItemSize") {
-				go flushBuffer()
+				go FlushBuffer()
 			}
 		}
 	}
 }
 
-func flushBuffer() {
+// FlushBuffer triggers a batched write operation in Cassandra target
+func FlushBuffer() {
 	chanLen := len(singleton.setbuffer)
 	metrics.SetIntGauge(MetricSetBufferSize, uint64(chanLen))
 
@@ -108,9 +115,10 @@ func InitCassandraConn() error {
 		}
 
 		singleton = &Handler{
-			session:     sess,
-			setbuffer:   make(chan CassandraSet, viper.GetInt("CassandraBatchBufferItemSize")),
-			buffertimer: time.AfterFunc(viper.GetDuration("CassandraBatchBufferMaxAgeMs"), flushBuffer),
+			session:      sess,
+			setbuffer:    make(chan CassandraSet, viper.GetInt("CassandraBatchBufferItemSize")),
+			buffertimer:  time.AfterFunc(viper.GetDuration("CassandraBatchBufferMaxAgeMs"), FlushBuffer),
+			readonlymode: false,
 		}
 
 		go bufferSizeCheckLoop()
@@ -142,6 +150,9 @@ func computeExpTime(Exptime uint32) uint32 {
 }
 
 func (h *Handler) Set(cmd common.SetRequest) error {
+	if h.readonlymode {
+		return common.ErrItemNotStored
+	}
 	realExptime := computeExpTime(cmd.Exptime)
 	start := timer.Now()
 	h.setbuffer <- CassandraSet{
@@ -161,6 +172,10 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 }
 
 func (h *Handler) Replace(cmd common.SetRequest) error {
+	if h.readonlymode {
+		return common.ErrItemNotStored
+	}
+
 	key_qi := func(q *gocql.QueryInfo) ([]interface{}, error) {
 		values := make([]interface{}, 1)
 		values[0] = cmd.Key
