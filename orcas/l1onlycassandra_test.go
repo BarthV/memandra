@@ -543,4 +543,26 @@ func TestL1OnlyCassandraOrca(t *testing.T) {
 		h1.verifyEmpty(t)
 		h2.verifyEmpty(t)
 	})
+
+	t.Run("Quit", func(t *testing.T) {
+		h1 := &testHandler{}
+		h2 := &testHandler{}
+		output := &bytes.Buffer{}
+		l1only := orcas.L1OnlyCassandra(h1, h2, textprot.NewTextResponder(bufio.NewWriter(output)))
+
+		err := l1only.Quit(common.QuitRequest{})
+		if err != nil {
+			t.Fatalf("Error should be nil, got %v", err)
+		}
+
+		out := string(output.Bytes())
+		gold := "Bye\r\n"
+
+		if out != gold {
+			t.Fatalf("Expected response '%v' but got '%v'", gold, out)
+		}
+
+		h1.verifyEmpty(t)
+		h2.verifyEmpty(t)
+	})
 }
