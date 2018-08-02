@@ -89,7 +89,6 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 		log.Println("[INFO] Forcing write buffer to be flushed before exiting")
 		cassandra.FlushBuffer()
-		time.Sleep(500 * time.Millisecond)
 		os.Exit(0)
 	}()
 
