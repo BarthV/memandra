@@ -1,18 +1,20 @@
-hash: f25ee53178639724bc9dd84f338654d12216afb34a037512ee389bf5f9e4b3c8
-updated: 2018-03-02T11:33:19.442691531+01:00
+hash: 174a6e04cf916cb1f0473479818bb3641af26de0b01deaee20a62c428986e356
+updated: 2018-08-07T16:51:15.512631624+02:00
 imports:
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+- name: github.com/go-redis/redis
+  version: 480db94d33e6088e08d628833b6c0705451d24bb
+  subpackages:
+  - internal
+  - internal/consistenthash
+  - internal/hashtag
+  - internal/pool
+  - internal/proto
+  - internal/singleflight
+  - internal/util
 - name: github.com/gocql/gocql
   version: 59441a623b364472525164bb62b6da9d552eb2ca
-  subpackages:
-  - internal/lru
-  - internal/murmur
-  - internal/streams
-- name: github.com/golang/snappy
-  version: 553a641470496b2327abcac10b36396bd98e45c9
-- name: github.com/hailocab/go-hostpool
-  version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/hashicorp/hcl
   version: 23c074d0eceb2b8a5bfdbb271ab780cde70f05a8
   subpackages:
@@ -34,10 +36,6 @@ imports:
   subpackages:
   - common
   - handlers
-  - handlers/memcached
-  - handlers/memcached/batched
-  - handlers/memcached/chunked
-  - handlers/memcached/std
   - metrics
   - orcas
   - protocol
@@ -70,8 +68,6 @@ imports:
   subpackages:
   - transform
   - unicode/norm
-- name: gopkg.in/inf.v0
-  version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/yaml.v2
   version: d670f9405373e636a5a2765eea47fac0c9bc91a4
 testImports: []

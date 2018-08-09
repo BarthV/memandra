@@ -147,8 +147,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	//////////////////////////
 	// Bucketized histograms
 	//////////////////////////
-	// disabled for our needs
-	// im = append(im, getAllBucketHistograms()...)
+	im = append(im, getAllBucketHistograms()...)
 
 	//////////////////////////
 	// Counters
@@ -176,7 +175,6 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	im = append(im, intcb...)
 	fm = append(fm, floatcb...)
 
-	fmt.Fprintf(w, "# TYPE %smemandra_metrics gauge\n", prefix)
 	printIntMetrics(w, im)
 	printFloatMetrics(w, fm)
 }
@@ -207,45 +205,15 @@ func printTags(tags Tags) string {
 	return string(ret)
 }
 
-func getMetricType(tags Tags) string {
-	// supported : gauge & counter (default is gauge)
-	for k, v := range tags {
-		if string(k) == "type" {
-			switch string(v) {
-			case "gauge":
-				return "gauge"
-			case "counter":
-				return "counter"
-			}
-		}
-	}
-	return "gauge"
-}
-
-func getPercentile(tags Tags) string {
-	// supported : gauge & counter (default is gauge)
-	for k, v := range tags {
-		switch string(k) {
-		case "statistic":
-			return fmt.Sprintf("percentile=\"%s\",", string(v))
-		case "percentile":
-			return fmt.Sprintf("percentile=\"%s\",", string(v))
-		case "size":
-			return fmt.Sprintf("size=\"%s\",", string(v))
-		}
-	}
-	return ""
-}
-
 func printIntMetrics(w io.Writer, metrics []IntMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%smemandra_metrics{%smetric=\"%s\",type=\"%s\"} %d\n", prefix, getPercentile(m.Tgs), m.Name, getMetricType(m.Tgs), m.Val)
+		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.Name, printTags(m.Tgs), m.Val)
 	}
 }
 
 func printFloatMetrics(w io.Writer, metrics []FloatMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%smemandra_metrics{%smetric=\"%s\",type=\"%s\"} %f\n", prefix, getPercentile(m.Tgs), m.Name, getMetricType(m.Tgs), m.Val)
+		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.Name, printTags(m.Tgs), m.Val)
 	}
 }
 

@@ -10,3 +10,5 @@ import:
 - package: github.com/Sirupsen/logrus
 - package: github.com/gocql/gocql
 - package: github.com/spf13/viper
+- package: github.com/go-redis/redis
+  version: ^6.13.2
