@@ -50,6 +50,7 @@ type Responder interface {
 	Noop(opaque uint32) error
 	Quit(opaque uint32, quiet bool) error
 	Version(opaque uint32) error
+	Stat(opaque uint32) error
 	Error(opaque uint32, reqType common.RequestType, err error, quiet bool) error
 }
 

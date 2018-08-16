@@ -243,6 +243,15 @@ func (b BinaryResponder) Version(opaque uint32) error {
 	return b.writer.Flush()
 }
 
+func (b BinaryResponder) Stat(opaque uint32) error {
+	if err := writeSuccessResponseHeader(b.writer, OpcodeStat, 0, 0, len(common.StatString), opaque, false); err != nil {
+		return err
+	}
+	n, _ := b.writer.WriteString(common.StatString + "\nEND")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
+	return b.writer.Flush()
+}
+
 func (b BinaryResponder) Error(opaque uint32, reqType common.RequestType, err error, quiet bool) error {
 	// TODO: proper opcode
 	return writeErrorResponseHeader(b.writer, reqTypeToOpcode(reqType, quiet), errorToCode(err), opaque)

@@ -37,6 +37,7 @@ type Orca interface {
 	Noop(req common.NoopRequest) error
 	Quit(req common.QuitRequest) error
 	Version(req common.VersionRequest) error
+	Stat(req common.StatRequest) error
 	Unknown(req common.Request) error
 	Error(req common.Request, reqType common.RequestType, err error)
 }

@@ -225,6 +225,10 @@ func (l *L1OnlyCassandraOrca) Version(req common.VersionRequest) error {
 	return l.res.Version(req.Opaque)
 }
 
+func (l *L1OnlyCassandraOrca) Stat(req common.StatRequest) error {
+	return l.res.Stat(req.Opaque)
+}
+
 func (l *L1OnlyCassandraOrca) Unknown(req common.Request) error {
 	return common.ErrUnknownCmd
 }

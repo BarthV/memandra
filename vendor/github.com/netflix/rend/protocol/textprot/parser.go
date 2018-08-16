@@ -142,6 +142,14 @@ func (t TextParser) Parse() (common.Request, common.RequestType, uint64, error) 
 			Opaque: 0,
 		}, common.RequestVersion, start, nil
 
+	case "stats":
+		if len(clParts) != 1 {
+			return nil, common.RequestQuit, start, common.ErrBadRequest
+		}
+		return common.StatRequest{
+			Opaque: 0,
+		}, common.RequestStat, start, nil
+
 	default:
 		return nil, common.RequestUnknown, start, nil
 	}

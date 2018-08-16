@@ -126,6 +126,10 @@ func (t TextResponder) Version(opaque uint32) error {
 	return t.resp("VERSION " + common.VersionString)
 }
 
+func (t TextResponder) Stat(opaque uint32) error {
+	return t.resp(common.StatString + "\nEND")
+}
+
 func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err error, quiet bool) error {
 	switch err {
 	case common.ErrKeyNotFound:

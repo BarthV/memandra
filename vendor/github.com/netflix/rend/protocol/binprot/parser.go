@@ -285,6 +285,11 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, uint64, error
 		return common.VersionRequest{
 			Opaque: reqHeader.OpaqueToken,
 		}, common.RequestVersion, start, nil
+
+	case OpcodeStat:
+		return common.StatRequest{
+			Opaque: reqHeader.OpaqueToken,
+		}, common.RequestStat, start, nil
 	}
 
 	log.Printf("Error processing request: unknown command. Command: %X\nWhole request:%#v", reqHeader.Opcode, reqHeader)
