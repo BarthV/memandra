@@ -1,6 +1,7 @@
 package: github.com/BarthV/memandra
 import:
 - package: github.com/netflix/rend
+  repo: https://github.com/BarthV/rend.git
   subpackages:
   - handlers
   - orcas
