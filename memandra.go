@@ -71,7 +71,9 @@ func main() {
 	h2 = handlers.NilHandler
 
 	// Init Cassandra connection in handler
-	cassandra.InitCassandraConn()
+	if err := cassandra.InitCassandraConn(); err != nil {
+		log.Fatal(err)
+	}
 
 	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
