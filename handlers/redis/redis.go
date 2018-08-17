@@ -6,6 +6,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
+	"github.com/spf13/viper"
 )
 
 type Handler struct {
@@ -33,7 +34,7 @@ func InitRedisConn() error {
 	if singleton == nil {
 		client := redis.NewClient(&redis.Options{
 			Network:  "unix",
-			Addr:     "/tmp/redis.sock",
+			Addr:     viper.GetString("RedisSocket"),
 			Password: "", // no password set
 			DB:       0,  // use default DB
 		})

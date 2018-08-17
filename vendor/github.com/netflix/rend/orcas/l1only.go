@@ -391,6 +391,10 @@ func (l *L1OnlyOrca) Version(req common.VersionRequest) error {
 	return l.res.Version(req.Opaque)
 }
 
+func (l *L1OnlyOrca) Stat(req common.StatRequest) error {
+	return l.res.Stat(req.Opaque)
+}
+
 func (l *L1OnlyOrca) Unknown(req common.Request) error {
 	return common.ErrUnknownCmd
 }

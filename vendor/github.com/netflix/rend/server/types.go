@@ -70,6 +70,7 @@ var (
 	MetricCmdNoop    = metrics.AddCounter("cmd_noop", nil)
 	MetricCmdQuit    = metrics.AddCounter("cmd_quit", nil)
 	MetricCmdVersion = metrics.AddCounter("cmd_version", nil)
+	MetricCmdStat    = metrics.AddCounter("cmd_stat", nil)
 
 	HistSet     = metrics.AddHistogram("set", false, nil)
 	HistAdd     = metrics.AddHistogram("add", false, nil)

@@ -889,6 +889,10 @@ func (l *L1L2Orca) Version(req common.VersionRequest) error {
 	return l.res.Version(req.Opaque)
 }
 
+func (l *L1L2Orca) Stat(req common.StatRequest) error {
+	return l.res.Stat(req.Opaque)
+}
+
 func (l *L1L2Orca) Unknown(req common.Request) error {
 	return common.ErrUnknownCmd
 }

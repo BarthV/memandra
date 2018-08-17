@@ -334,6 +334,10 @@ func (l *LockedOrca) Version(req common.VersionRequest) error {
 	return l.wrapped.Version(req)
 }
 
+func (l *LockedOrca) Stat(req common.StatRequest) error {
+	return l.wrapped.Stat(req)
+}
+
 func (l *LockedOrca) Unknown(req common.Request) error {
 	return l.wrapped.Unknown(req)
 }

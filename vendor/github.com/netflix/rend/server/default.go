@@ -120,6 +120,9 @@ func (s *DefaultServer) Loop() {
 		case common.RequestVersion:
 			metrics.IncCounter(MetricCmdVersion)
 			err = s.orca.Version(request.(common.VersionRequest))
+		case common.RequestStat:
+			metrics.IncCounter(MetricCmdStat)
+			err = s.orca.Stat(request.(common.StatRequest))
 		case common.RequestUnknown:
 			metrics.IncCounter(MetricCmdUnknown)
 			err = s.orca.Unknown(request)

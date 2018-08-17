@@ -20,14 +20,14 @@ func init_default_config() {
 	log.Println("Initializing configuration")
 	viper.SetDefault("ListenPort", 11221)
 	viper.SetDefault("InternalMetricsListenAddress", ":11299")
-	viper.SetDefault("RedisHostPort", "127.0.0.1:6379")
+	viper.SetDefault("RedisSocket", "/var/run/redis.sock")
 }
 
 func load_config_from_env() {
 	log.Println("Mapping configuration from environment")
 	viper.BindEnv("ListenPort", "LISTENPORT")
 	viper.BindEnv("InternalMetricsListenAddress", "METRICSLISTENADDR")
-	viper.BindEnv("RedisHostPort", "REDISHOSTPORT")
+	viper.BindEnv("RedisSocket", "REDISSOCKET")
 }
 
 func main() {
@@ -51,7 +51,9 @@ func main() {
 	h1 = redis.New
 	h2 = handlers.NilHandler
 
-	redis.InitRedisConn()
+	if err := redis.InitRedisConn(); err != nil {
+		log.Fatal(err)
+	}
 
 	l := server.TCPListener(viper.GetInt("ListenPort"))
 	ps := []protocol.Components{binprot.Components, textprot.Components}
