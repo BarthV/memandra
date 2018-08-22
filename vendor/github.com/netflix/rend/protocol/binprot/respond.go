@@ -263,6 +263,10 @@ func (b BinaryResponder) Stat(opaque uint32) error {
 	}
 	n, _ := b.writer.WriteString("version" + common.Version)
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
+
+	if err := writeSuccessResponseHeader(b.writer, OpcodeStat, 0, 0, 0, 0, false); err != nil {
+		return err
+	}
 	return b.writer.Flush()
 }
 
