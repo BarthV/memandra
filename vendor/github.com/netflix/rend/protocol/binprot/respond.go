@@ -116,6 +116,20 @@ import (
 //     Key                 : None
 //     Value               : None
 
+// Sample Stat response
+// Field        (offset) (value)
+//     Magic        (0)    : 0x81
+//     Opcode       (1)    : 0x10
+//     Key length   (2,3)  : 0x0000
+//     Extra length (4)    : 0x00
+//     Data type    (5)    : 0x00
+//     Status       (6,7)  : 0x0000
+//     Total body   (8-11) : 0x0000000f
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x00000000000000000
+//     Key          (24-31): get_hits
+//     Value        (32-40): 530845144
+
 type BinaryResponder struct {
 	writer *bufio.Writer
 }
@@ -244,10 +258,10 @@ func (b BinaryResponder) Version(opaque uint32) error {
 }
 
 func (b BinaryResponder) Stat(opaque uint32) error {
-	if err := writeSuccessResponseHeader(b.writer, OpcodeStat, 0, 0, len(common.StatString), opaque, false); err != nil {
+	if err := writeSuccessResponseHeader(b.writer, OpcodeStat, 7, 0, 7+len(common.Version), opaque, false); err != nil {
 		return err
 	}
-	n, _ := b.writer.WriteString(common.StatString + "\nEND")
+	n, _ := b.writer.WriteString("version" + common.Version)
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	return b.writer.Flush()
 }
